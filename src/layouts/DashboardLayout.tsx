@@ -24,8 +24,12 @@ export default function DashboardLayout() {
         method: 'POST',
         credentials: 'include'
       });
-      setUser(null);
+      // Navigate to the public home page first, so we exit the ProtectedRoute
       navigate('/');
+      // Then clear the user state in the next tick to prevent ProtectedRoute from catching the state change and redirecting to /login
+      setTimeout(() => {
+        setUser(null);
+      }, 10);
     } catch (err) {
       console.error('Logout failed', err);
     }
