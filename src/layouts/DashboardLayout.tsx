@@ -25,7 +25,7 @@ export default function DashboardLayout() {
         credentials: 'include'
       });
       setUser(null);
-      navigate('/login');
+      navigate('/');
     } catch (err) {
       console.error('Logout failed', err);
     }
