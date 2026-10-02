@@ -8,7 +8,6 @@ import {
   ShieldCheck, 
   PlayCircle,
   MessageSquare,
-  Clock,
   Check,
   FolderKanban,
   Settings
