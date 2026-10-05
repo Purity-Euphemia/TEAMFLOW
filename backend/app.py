@@ -1,10 +1,11 @@
 import os
+import secrets
 from flask import Flask, request, jsonify, session
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 app = Flask(__name__)
 # Enable CORS for the Vite dev server, allowing credentials (cookies)
@@ -81,6 +82,17 @@ class Notification(db.Model):
     type = db.Column(db.String(50), nullable=False)
     message = db.Column(db.String(255), nullable=False)
     is_read = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+class WorkspaceInvitation(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    workspace_id = db.Column(db.Integer, db.ForeignKey('workspace.id'), nullable=False)
+    inviter_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    email = db.Column(db.String(120), nullable=False)
+    role = db.Column(db.String(20), default='member')
+    token = db.Column(db.String(64), unique=True, nullable=False)
+    status = db.Column(db.String(20), default='pending') # pending, accepted, canceled
+    expires_at = db.Column(db.DateTime, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 with app.app_context():
@@ -229,10 +241,164 @@ def get_workspace_members():
                 "id": u.id,
                 "name": u.full_name,
                 "email": u.email,
-                "role": m.role
+                "role": m.role,
+                "joined_at": m.created_at.isoformat()
             })
             
     return jsonify({"members": team_data}), 200
+
+@app.route('/api/workspaces/<int:workspace_id>/invitations', methods=['GET', 'POST'])
+def handle_invitations(workspace_id):
+    user = require_auth()
+    if not user: return jsonify({"error": "Unauthorized"}), 401
+    
+    workspace, role = get_current_workspace(user.id, workspace_id)
+    if not workspace or workspace.id != workspace_id:
+        return jsonify({"error": "Forbidden"}), 403
+
+    if request.method == 'GET':
+        invites = WorkspaceInvitation.query.filter_by(workspace_id=workspace.id, status='pending').all()
+        result = []
+        for inv in invites:
+            inviter = User.query.get(inv.inviter_id)
+            result.append({
+                "id": inv.id,
+                "email": inv.email,
+                "role": inv.role,
+                "inviter_name": inviter.full_name if inviter else "Unknown",
+                "created_at": inv.created_at.isoformat(),
+                "expires_at": inv.expires_at.isoformat(),
+                "status": inv.status,
+                "token": inv.token
+            })
+        return jsonify({"invitations": result})
+
+    if request.method == 'POST':
+        if role not in ['owner', 'admin']:
+            return jsonify({"error": "Permission denied"}), 403
+            
+        data = request.get_json()
+        email = data.get('email', '').strip().lower()
+        invite_role = data.get('role', 'member').lower()
+        
+        if not is_valid_email(email):
+            return jsonify({"error": "Invalid email"}), 400
+        if invite_role not in ['admin', 'member']:
+            return jsonify({"error": "Invalid role"}), 400
+            
+        # Check if already a member
+        existing_user = User.query.filter_by(email=email).first()
+        if existing_user:
+            existing_member = WorkspaceMember.query.filter_by(workspace_id=workspace.id, user_id=existing_user.id).first()
+            if existing_member:
+                return jsonify({"error": "User is already a member"}), 400
+                
+        # Check if pending invite already exists
+        existing_invite = WorkspaceInvitation.query.filter_by(workspace_id=workspace.id, email=email, status='pending').first()
+        if existing_invite:
+            return jsonify({"error": "Invitation already sent"}), 400
+            
+        token = secrets.token_urlsafe(32)
+        expires_at = datetime.utcnow() + timedelta(days=7)
+        
+        invite = WorkspaceInvitation(
+            workspace_id=workspace.id,
+            inviter_id=user.id,
+            email=email,
+            role=invite_role,
+            token=token,
+            expires_at=expires_at
+        )
+        db.session.add(invite)
+        log_activity(workspace.id, user.id, f'invited {email} as {invite_role}', None)
+        db.session.commit()
+        
+        # Here we pretend to send an email or log the token for development
+        print(f"DEV MOCK EMAIL: Invite {email} to workspace {workspace.name}. Link: http://localhost:5173/accept-invite?token={token}")
+        
+        return jsonify({"message": "Invitation created", "token": token}), 201
+
+@app.route('/api/workspaces/<int:workspace_id>/invitations/<int:invite_id>', methods=['DELETE'])
+def cancel_invitation(workspace_id, invite_id):
+    user = require_auth()
+    if not user: return jsonify({"error": "Unauthorized"}), 401
+    
+    workspace, role = get_current_workspace(user.id, workspace_id)
+    if not workspace or workspace.id != workspace_id: return jsonify({"error": "Forbidden"}), 403
+    if role not in ['owner', 'admin']: return jsonify({"error": "Permission denied"}), 403
+    
+    invite = WorkspaceInvitation.query.get_or_404(invite_id)
+    if invite.workspace_id != workspace.id: return jsonify({"error": "Forbidden"}), 403
+    
+    invite.status = 'canceled'
+    log_activity(workspace.id, user.id, f'canceled invitation for {invite.email}', None)
+    db.session.commit()
+    return jsonify({"message": "Invitation canceled"})
+
+@app.route('/api/invitations/<token>/accept', methods=['POST'])
+def accept_invitation(token):
+    user = require_auth()
+    if not user: return jsonify({"error": "Unauthorized"}), 401
+    
+    invite = WorkspaceInvitation.query.filter_by(token=token, status='pending').first()
+    if not invite: return jsonify({"error": "Invalid or expired invitation"}), 404
+    
+    if invite.expires_at < datetime.utcnow():
+        invite.status = 'expired'
+        db.session.commit()
+        return jsonify({"error": "Invitation expired"}), 400
+        
+    if user.email != invite.email:
+        return jsonify({"error": "This invitation was sent to a different email address"}), 403
+        
+    existing = WorkspaceMember.query.filter_by(workspace_id=invite.workspace_id, user_id=user.id).first()
+    if not existing:
+        member = WorkspaceMember(workspace_id=invite.workspace_id, user_id=user.id, role=invite.role)
+        db.session.add(member)
+        
+    invite.status = 'accepted'
+    log_activity(invite.workspace_id, user.id, 'joined the workspace via invitation', None)
+    db.session.commit()
+    
+    return jsonify({"message": "Invitation accepted", "workspace_id": invite.workspace_id})
+
+@app.route('/api/workspaces/<int:workspace_id>/members/<int:member_user_id>', methods=['PATCH', 'DELETE'])
+def manage_member(workspace_id, member_user_id):
+    user = require_auth()
+    if not user: return jsonify({"error": "Unauthorized"}), 401
+    
+    workspace, role = get_current_workspace(user.id, workspace_id)
+    if not workspace or workspace.id != workspace_id: return jsonify({"error": "Forbidden"}), 403
+    if role not in ['owner', 'admin']: return jsonify({"error": "Permission denied"}), 403
+    
+    target_member = WorkspaceMember.query.filter_by(workspace_id=workspace.id, user_id=member_user_id).first()
+    if not target_member: return jsonify({"error": "Member not found"}), 404
+    
+    target_user = User.query.get(member_user_id)
+    
+    if request.method == 'PATCH':
+        data = request.get_json()
+        new_role = data.get('role', '').lower()
+        if new_role not in ['admin', 'member']: return jsonify({"error": "Invalid role"}), 400
+        
+        # Prevent demoting the only owner
+        if target_member.role == 'owner': return jsonify({"error": "Cannot change the role of an owner"}), 403
+        
+        target_member.role = new_role
+        log_activity(workspace.id, user.id, f"changed {target_user.full_name}'s role to {new_role}", None)
+        db.session.commit()
+        return jsonify({"message": "Role updated"})
+        
+    if request.method == 'DELETE':
+        if target_member.role == 'owner':
+            return jsonify({"error": "Cannot remove an owner from the workspace"}), 403
+        if user.id == member_user_id:
+            return jsonify({"error": "Cannot remove yourself. Use leave workspace."}), 400
+            
+        db.session.delete(target_member)
+        log_activity(workspace.id, user.id, f"removed {target_user.full_name} from workspace", None)
+        db.session.commit()
+        return jsonify({"message": "Member removed"})
 
 @app.route('/api/dashboard', methods=['GET'])
 def get_dashboard():

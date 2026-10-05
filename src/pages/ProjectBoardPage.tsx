@@ -60,8 +60,9 @@ export default function ProjectBoardPage() {
 
   // Modal
   const [showModal, setShowModal] = useState(false);
-  const [modalMode, setModalMode] = useState<'create' | 'edit'>('create');
+  const [modalMode, setModalMode] = useState<'create' | 'edit' | 'view'>('create');
   const [editId, setEditId] = useState<number | null>(null);
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   
   const [formTitle, setFormTitle] = useState('');
   const [formDesc, setFormDesc] = useState('');
@@ -131,6 +132,7 @@ export default function ProjectBoardPage() {
   const openEditModal = (t: Task) => {
     setModalMode('edit');
     setEditId(t.id);
+    setSelectedTask(t);
     setFormTitle(t.title);
     setFormDesc(t.description || '');
     setFormPriority(t.priority);
@@ -140,6 +142,12 @@ export default function ProjectBoardPage() {
     const member = members.find(m => m.name === t.assignee_name);
     setFormAssigneeId(member ? member.id.toString() : '');
     
+    setShowModal(true);
+  };
+
+  const openViewModal = (t: Task) => {
+    setSelectedTask(t);
+    setModalMode('view');
     setShowModal(true);
   };
 
@@ -526,6 +534,7 @@ export default function ProjectBoardPage() {
                           key={task.id}
                           draggable
                           onDragStart={(e) => handleDragStart(e, task.id)}
+                          onClick={() => openViewModal(task)}
                           className="glass"
                           style={{ 
                             backgroundColor: 'white', padding: '1rem', borderRadius: 'var(--radius-md)', 
@@ -542,7 +551,7 @@ export default function ProjectBoardPage() {
                               {task.priority}
                             </span>
                             
-                            <div className="dropdown" style={{ position: 'relative' }}>
+                            <div className="dropdown" style={{ position: 'relative' }} onClick={(e) => e.stopPropagation()}>
                               <button style={{ color: 'hsl(var(--text-muted))', padding: '0.125rem', background: 'none', border: 'none', cursor: 'pointer' }} onClick={(e) => {
                                 const menu = e.currentTarget.nextElementSibling as HTMLElement;
                                 if (menu) menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
@@ -636,12 +645,81 @@ export default function ProjectBoardPage() {
       {/* Create/Edit Task Modal */}
       {showModal && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
-          <div className="glass" style={{ backgroundColor: 'white', padding: '2rem', borderRadius: 'var(--radius-xl)', width: '100%', maxWidth: '500px', maxHeight: '90vh', overflowY: 'auto' }}>
+          <div className="glass" style={{ backgroundColor: 'white', padding: '2rem', borderRadius: 'var(--radius-xl)', width: '100%', maxWidth: modalMode === 'view' ? '600px' : '500px', maxHeight: '90vh', overflowY: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-              <h2 style={{ fontSize: '1.25rem' }}>{modalMode === 'create' ? 'New Task' : 'Edit Task'}</h2>
+              <h2 style={{ fontSize: '1.25rem' }}>
+                {modalMode === 'create' ? 'New Task' : modalMode === 'edit' ? 'Edit Task' : 'Task Details'}
+              </h2>
               <button onClick={() => setShowModal(false)} style={{ color: 'hsl(var(--text-muted))', background: 'none', border: 'none', cursor: 'pointer' }}><X size={20}/></button>
             </div>
             
+            {modalMode === 'view' && selectedTask ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                <div>
+                  <h2 style={{ fontSize: '1.5rem', marginBottom: '0.5rem', fontWeight: 600 }}>{selectedTask.title}</h2>
+                  <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                    <span style={{ 
+                      fontSize: '0.75rem', fontWeight: 600, padding: '0.25rem 0.6rem', borderRadius: '9999px',
+                      backgroundColor: 'hsla(var(--accent-primary), 0.1)', color: 'hsl(var(--accent-primary))', textTransform: 'uppercase'
+                    }}>{selectedTask.status}</span>
+                    <span style={{ 
+                      fontSize: '0.75rem', fontWeight: 600, padding: '0.25rem 0.6rem', borderRadius: '9999px', textTransform: 'uppercase',
+                      color: getPriorityColor(selectedTask.priority), backgroundColor: `hsla(from ${getPriorityColor(selectedTask.priority)} h s l / 0.1)`
+                    }}>{selectedTask.priority}</span>
+                  </div>
+                </div>
+                
+                <div>
+                  <h3 style={{ fontSize: '0.875rem', color: 'hsl(var(--text-secondary))', marginBottom: '0.5rem', fontWeight: 600 }}>Description</h3>
+                  <p style={{ fontSize: '0.875rem', color: 'hsl(var(--text-primary))', whiteSpace: 'pre-wrap' }}>{selectedTask.description || 'No description provided.'}</p>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', backgroundColor: 'hsla(var(--bg-tertiary), 0.5)', padding: '1.25rem', borderRadius: 'var(--radius-lg)' }}>
+                  <div>
+                    <h4 style={{ fontSize: '0.75rem', color: 'hsl(var(--text-secondary))', marginBottom: '0.375rem', fontWeight: 600, textTransform: 'uppercase' }}>Assignee</h4>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      {selectedTask.assignee_name !== 'Unassigned' && (
+                        <div style={{ width: '24px', height: '24px', borderRadius: '50%', backgroundColor: 'hsl(var(--accent-primary))', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem', fontWeight: 600 }}>
+                          {selectedTask.assignee_name.charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                      <span style={{ fontSize: '0.875rem', fontWeight: 500 }}>{selectedTask.assignee_name}</span>
+                    </div>
+                  </div>
+                  <div>
+                    <h4 style={{ fontSize: '0.75rem', color: 'hsl(var(--text-secondary))', marginBottom: '0.375rem', fontWeight: 600, textTransform: 'uppercase' }}>Due Date</h4>
+                    <span style={{ fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: '0.375rem', fontWeight: 500 }}>
+                      <Clock size={14} style={{ color: 'hsl(var(--text-muted))' }} />
+                      {selectedTask.due_date ? new Date(selectedTask.due_date).toLocaleDateString() : 'No due date'}
+                    </span>
+                  </div>
+                  <div>
+                    <h4 style={{ fontSize: '0.75rem', color: 'hsl(var(--text-secondary))', marginBottom: '0.375rem', fontWeight: 600, textTransform: 'uppercase' }}>Project</h4>
+                    <span style={{ fontSize: '0.875rem', fontWeight: 500 }}>{project.name}</span>
+                  </div>
+                  <div>
+                    <h4 style={{ fontSize: '0.75rem', color: 'hsl(var(--text-secondary))', marginBottom: '0.375rem', fontWeight: 600, textTransform: 'uppercase' }}>Last Updated</h4>
+                    <span style={{ fontSize: '0.875rem', fontWeight: 500 }}>{selectedTask.updated_at ? new Date(selectedTask.updated_at).toLocaleDateString() : 'Unknown'}</span>
+                  </div>
+                </div>
+
+                {/* Comments and Activity Placeholders */}
+                <div style={{ borderTop: '1px solid hsl(var(--border-subtle))', paddingTop: '1.5rem', marginTop: '0.5rem' }}>
+                  <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '1rem' }}>Activity & Comments</h3>
+                  <div style={{ textAlign: 'center', padding: '2rem 1rem', border: '1px dashed hsl(var(--border-subtle))', borderRadius: 'var(--radius-md)', color: 'hsl(var(--text-muted))' }}>
+                    <p style={{ fontSize: '0.875rem' }}>No comments or activity yet.</p>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '1rem' }}>
+                  <button className="btn btn-secondary" style={{ color: 'hsl(var(--danger))', borderColor: 'hsl(var(--border-subtle))' }} onClick={() => setShowDeleteConfirm(selectedTask.id)}>Delete Task</button>
+                  <div style={{ display: 'flex', gap: '1rem' }}>
+                    <button className="btn btn-secondary" onClick={() => setShowModal(false)}>Close</button>
+                    <button className="btn btn-primary" onClick={() => openEditModal(selectedTask)}>Edit Task</button>
+                  </div>
+                </div>
+              </div>
+            ) : (
             <form onSubmit={handleSaveTask} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
               <div>
                 <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.875rem', fontWeight: 500 }}>Task Title *</label>
@@ -717,7 +795,7 @@ export default function ProjectBoardPage() {
 
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', marginTop: '1rem' }}>
                 {modalMode === 'edit' && editId ? (
-                  <button type="button" className="btn btn-secondary" style={{ color: 'hsl(var(--danger))', borderColor: 'hsl(var(--danger))' }} onClick={() => setShowDeleteConfirm(editId)}>Delete</button>
+                  <button type="button" className="btn btn-secondary" style={{ color: 'hsl(var(--danger))', borderColor: 'hsl(var(--border-subtle))' }} onClick={() => setShowDeleteConfirm(editId)}>Delete</button>
                 ) : <div />}
                 <div style={{ display: 'flex', gap: '1rem' }}>
                   <button type="button" className="btn btn-secondary" onClick={() => setShowModal(false)}>Cancel</button>
@@ -725,6 +803,7 @@ export default function ProjectBoardPage() {
                 </div>
               </div>
             </form>
+            )}
           </div>
         </div>
       )}

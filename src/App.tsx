@@ -10,6 +10,8 @@ import DashboardPage from './pages/DashboardPage';
 import ProjectsPage from './pages/ProjectsPage';
 import ProjectBoardPage from './pages/ProjectBoardPage';
 import TasksPage from './pages/TasksPage';
+import TeamPage from './pages/TeamPage';
+import AcceptInvitePage from './pages/AcceptInvitePage';
 import ProtectedRoute from './components/ProtectedRoute';
 import DashboardLayout from './layouts/DashboardLayout';
 
@@ -27,6 +29,8 @@ function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       </Route>
+      
+      <Route path="/accept-invite" element={<AcceptInvitePage />} />
 
       {/* Protected Routes */}
       <Route element={<ProtectedRoute />}>
@@ -35,7 +39,7 @@ function App() {
           <Route path="/tasks" element={<TasksPage />} />
           <Route path="/projects" element={<ProjectsPage />} />
           <Route path="/projects/:id" element={<ProjectBoardPage />} />
-          <Route path="/team" element={<div style={{padding: '2rem'}}><h2>Team</h2><p>Coming soon...</p></div>} />
+          <Route path="/team" element={<TeamPage />} />
           <Route path="/notifications" element={<div style={{padding: '2rem'}}><h2>Notifications</h2><p>Coming soon...</p></div>} />
           <Route path="/settings" element={<div style={{padding: '2rem'}}><h2>Settings</h2><p>Coming soon...</p></div>} />
         </Route>
