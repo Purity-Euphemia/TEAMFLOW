@@ -210,6 +210,29 @@ def create_workspace():
     
     return jsonify({"id": workspace.id, "name": workspace.name}), 201
 
+@app.route('/api/workspaces/members', methods=['GET'])
+def get_workspace_members():
+    user = require_auth()
+    if not user: return jsonify({"error": "Unauthorized"}), 401
+    
+    ws_id = request.args.get('workspace_id')
+    workspace, role = get_current_workspace(user.id, ws_id)
+    if not workspace: return jsonify({"error": "Workspace not found"}), 404
+    
+    members = WorkspaceMember.query.filter_by(workspace_id=workspace.id).all()
+    team_data = []
+    for m in members:
+        u = User.query.get(m.user_id)
+        if u:
+            team_data.append({
+                "id": u.id,
+                "name": u.full_name,
+                "email": u.email,
+                "role": m.role
+            })
+            
+    return jsonify({"members": team_data}), 200
+
 @app.route('/api/dashboard', methods=['GET'])
 def get_dashboard():
     user = require_auth()

@@ -7,6 +7,7 @@ import RegisterPage from './pages/auth/RegisterPage';
 import LoginPage from './pages/auth/LoginPage';
 import ForgotPasswordPage from './pages/auth/ForgotPasswordPage';
 import DashboardPage from './pages/DashboardPage';
+import ProjectsPage from './pages/ProjectsPage';
 import ProtectedRoute from './components/ProtectedRoute';
 import DashboardLayout from './layouts/DashboardLayout';
 
@@ -30,7 +31,7 @@ function App() {
         <Route element={<DashboardLayout />}>
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/tasks" element={<div style={{padding: '2rem'}}><h2>My Tasks</h2><p>Coming soon...</p></div>} />
-          <Route path="/projects" element={<div style={{padding: '2rem'}}><h2>Projects</h2><p>Coming soon...</p></div>} />
+          <Route path="/projects" element={<ProjectsPage />} />
           <Route path="/team" element={<div style={{padding: '2rem'}}><h2>Team</h2><p>Coming soon...</p></div>} />
           <Route path="/notifications" element={<div style={{padding: '2rem'}}><h2>Notifications</h2><p>Coming soon...</p></div>} />
           <Route path="/settings" element={<div style={{padding: '2rem'}}><h2>Settings</h2><p>Coming soon...</p></div>} />
