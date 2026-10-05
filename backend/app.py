@@ -554,10 +554,21 @@ def get_tasks():
     if not user: return jsonify({"error": "Unauthorized"}), 401
     
     ws_id = request.args.get('workspace_id')
+    project_id = request.args.get('project_id')
     workspace, role = get_current_workspace(user.id, ws_id)
     if not workspace: return jsonify({"error": "Workspace not found"}), 404
     
-    tasks = Task.query.filter_by(workspace_id=workspace.id, assignee_id=user.id).all()
+    query = Task.query.filter_by(workspace_id=workspace.id)
+    if project_id:
+        # Verify project belongs to workspace
+        proj = Project.query.get(project_id)
+        if not proj or proj.workspace_id != workspace.id:
+            return jsonify({"error": "Invalid project"}), 400
+        query = query.filter_by(project_id=project_id)
+    else:
+        query = query.filter_by(assignee_id=user.id)
+        
+    tasks = query.all()
     
     tasks_data = []
     for t in tasks:
@@ -682,7 +693,28 @@ def update_task(task_id):
     log_activity(workspace.id, user.id, 'updated a task', task.title)
     db.session.commit()
     
+    db.session.commit()
+    
     return jsonify({"message": "Task updated"})
+
+@app.route('/api/tasks/<int:task_id>', methods=['DELETE'])
+def delete_task(task_id):
+    user = require_auth()
+    if not user: return jsonify({"error": "Unauthorized"}), 401
+    
+    task = Task.query.get_or_404(task_id)
+    workspace, role = get_current_workspace(user.id, task.workspace_id)
+    if not workspace: return jsonify({"error": "Forbidden"}), 403
+    
+    # Check permissions, owner or admin can delete, or assignee
+    if role not in ['owner', 'admin'] and task.assignee_id != user.id:
+        return jsonify({"error": "Permission denied"}), 403
+        
+    db.session.delete(task)
+    log_activity(workspace.id, user.id, 'deleted a task', task.title)
+    db.session.commit()
+    
+    return jsonify({"message": "Task deleted"})
 
 @app.route('/api/tasks/<int:task_id>/complete', methods=['POST'])
 def complete_task(task_id):
@@ -698,6 +730,27 @@ def complete_task(task_id):
     db.session.commit()
     
     return jsonify({"message": "Task completed"})
+
+@app.route('/api/tasks/<int:task_id>/status', methods=['PATCH'])
+def update_task_status(task_id):
+    user = require_auth()
+    if not user: return jsonify({"error": "Unauthorized"}), 401
+    
+    task = Task.query.get_or_404(task_id)
+    workspace, _ = get_current_workspace(user.id, task.workspace_id)
+    if not workspace: return jsonify({"error": "Forbidden"}), 403
+    
+    data = request.get_json()
+    status = data.get('status')
+    if status not in ['To Do', 'In Progress', 'Review', 'Done']:
+        return jsonify({"error": "Invalid status"}), 400
+        
+    task.status = status
+    db.session.commit()
+    log_activity(workspace.id, user.id, f'moved task to {status}', task.title)
+    db.session.commit()
+    
+    return jsonify({"message": "Task status updated"})
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { 
   Plus, Search, FolderKanban, MoreVertical, Calendar, 
@@ -27,6 +28,7 @@ interface WorkspaceMember {
 }
 
 export default function ProjectsPage() {
+  const navigate = useNavigate();
   const { user } = useAuth();
   
   const [projects, setProjects] = useState<Project[]>([]);
@@ -354,7 +356,7 @@ export default function ProjectsPage() {
                       borderRadius: 'var(--radius-md)', padding: '0.5rem 0', minWidth: '120px',
                       boxShadow: 'var(--shadow-md)', zIndex: 10
                     }}>
-                      <button style={{ width: '100%', textAlign: 'left', padding: '0.5rem 1rem', fontSize: '0.875rem' }} onClick={() => window.location.href = `/project.html?id=${proj.id}`}>Open</button>
+                      <button style={{ width: '100%', textAlign: 'left', padding: '0.5rem 1rem', fontSize: '0.875rem' }} onClick={() => navigate(`/projects/${proj.id}`)}>Open</button>
                       <button style={{ width: '100%', textAlign: 'left', padding: '0.5rem 1rem', fontSize: '0.875rem' }} onClick={() => openEditModal(proj)}>Edit</button>
                       {proj.status !== 'Archived' && (
                         <button style={{ width: '100%', textAlign: 'left', padding: '0.5rem 1rem', fontSize: '0.875rem', color: 'hsl(var(--danger))' }} onClick={() => setShowArchiveConfirm(proj.id)}>Archive</button>
@@ -415,7 +417,7 @@ export default function ProjectsPage() {
                 
                 <button 
                   className="btn btn-secondary" 
-                  onClick={() => window.location.href = `/project.html?id=${proj.id}`}
+                  onClick={() => navigate(`/projects/${proj.id}`)}
                   style={{ padding: '0.375rem 0.75rem', fontSize: '0.75rem', backgroundColor: 'hsl(var(--bg-tertiary))', border: 'none' }}
                 >
                   Open Project

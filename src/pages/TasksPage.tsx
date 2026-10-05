@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { 
   Plus, Search, CheckSquare, Clock, CheckCircle2, 
@@ -29,6 +30,7 @@ interface WorkspaceMember {
 }
 
 export default function TasksPage() {
+  const navigate = useNavigate();
   const { user } = useAuth();
   
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -433,7 +435,7 @@ export default function TasksPage() {
                       </td>
                       <td style={{ padding: '1rem 1.5rem', fontSize: '0.875rem', color: 'hsl(var(--text-secondary))' }}>
                         {task.project_name ? (
-                           <span style={{ cursor: 'pointer' }} onClick={() => window.location.href = `/project.html?id=${task.project_id}`}>{task.project_name}</span>
+                           <span style={{ cursor: 'pointer' }} onClick={() => navigate(`/projects/${task.project_id}`)}>{task.project_name}</span>
                         ) : 'No Project'}
                       </td>
                       <td style={{ padding: '1rem 1.5rem' }}>
