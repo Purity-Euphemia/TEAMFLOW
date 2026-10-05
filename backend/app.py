@@ -61,8 +61,9 @@ class Task(db.Model):
     project_id = db.Column(db.Integer, db.ForeignKey('project.id'), nullable=True)
     assignee_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
     title = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.String(1000), nullable=True)
     priority = db.Column(db.String(20), default='Medium') # Low, Medium, High, Urgent
-    status = db.Column(db.String(20), default='todo') # todo, completed
+    status = db.Column(db.String(20), default='To Do') # To Do, In Progress, Review, Done
     due_date = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -248,19 +249,19 @@ def get_dashboard():
         }), 200
         
     # Get basic counts
-    active_projects_count = Project.query.filter_by(workspace_id=workspace.id, status='active').count()
-    my_open_tasks_count = Task.query.filter_by(workspace_id=workspace.id, assignee_id=user.id, status='todo').count()
-    completed_tasks_count = Task.query.filter_by(workspace_id=workspace.id, status='completed').count()
+    active_projects_count = Project.query.filter(Project.workspace_id == workspace.id, Project.status.in_(['active', 'Active'])).count()
+    my_open_tasks_count = Task.query.filter(Task.workspace_id == workspace.id, Task.assignee_id == user.id, Task.status.notin_(['completed', 'Done'])).count()
+    completed_tasks_count = Task.query.filter(Task.workspace_id == workspace.id, Task.status.in_(['completed', 'Done'])).count()
     
     now = datetime.utcnow()
-    overdue_tasks_count = Task.query.filter(Task.workspace_id == workspace.id, Task.status == 'todo', Task.due_date < now).count()
+    overdue_tasks_count = Task.query.filter(Task.workspace_id == workspace.id, Task.status.notin_(['completed', 'Done']), Task.due_date < now).count()
     
     # Get project progress
-    projects = Project.query.filter_by(workspace_id=workspace.id, status='active').all()
+    projects = Project.query.filter(Project.workspace_id == workspace.id, Project.status.in_(['active', 'Active'])).all()
     projects_data = []
     for p in projects:
         total_tasks = Task.query.filter_by(project_id=p.id).count()
-        completed = Task.query.filter_by(project_id=p.id, status='completed').count()
+        completed = Task.query.filter(Task.project_id == p.id, Task.status.in_(['completed', 'Done'])).count()
         progress = int((completed / total_tasks * 100)) if total_tasks > 0 else 0
         projects_data.append({
             "id": p.id,
@@ -286,7 +287,7 @@ def get_dashboard():
         })
         
     # Get upcoming deadlines
-    upcoming = Task.query.filter(Task.workspace_id == workspace.id, Task.status == 'todo', Task.due_date != None).order_by(Task.due_date.asc()).limit(5).all()
+    upcoming = Task.query.filter(Task.workspace_id == workspace.id, Task.status.notin_(['completed', 'Done']), Task.due_date != None).order_by(Task.due_date.asc()).limit(5).all()
     upcoming_data = []
     for t in upcoming:
         proj = Project.query.get(t.project_id)
@@ -371,7 +372,7 @@ def get_projects():
     for p in projects:
         # progress calculation
         total_tasks = Task.query.filter_by(project_id=p.id).count()
-        completed = Task.query.filter_by(project_id=p.id, status='completed').count()
+        completed = Task.query.filter(Task.project_id == p.id, Task.status.in_(['completed', 'Done'])).count()
         progress = int((completed / total_tasks * 100)) if total_tasks > 0 else 0
         
         # members
@@ -547,6 +548,36 @@ def archive_project(project_id):
     
     return jsonify({"message": "Project archived"}), 200
 
+@app.route('/api/tasks', methods=['GET'])
+def get_tasks():
+    user = require_auth()
+    if not user: return jsonify({"error": "Unauthorized"}), 401
+    
+    ws_id = request.args.get('workspace_id')
+    workspace, role = get_current_workspace(user.id, ws_id)
+    if not workspace: return jsonify({"error": "Workspace not found"}), 404
+    
+    tasks = Task.query.filter_by(workspace_id=workspace.id, assignee_id=user.id).all()
+    
+    tasks_data = []
+    for t in tasks:
+        proj = Project.query.get(t.project_id) if t.project_id else None
+        assignee = User.query.get(t.assignee_id) if t.assignee_id else None
+        tasks_data.append({
+            "id": t.id,
+            "title": t.title,
+            "description": t.description,
+            "project_name": proj.name if proj else None,
+            "project_id": proj.id if proj else None,
+            "assignee_name": assignee.full_name if assignee else "Unassigned",
+            "priority": t.priority,
+            "status": t.status,
+            "due_date": t.due_date.isoformat() if t.due_date else None,
+            "updated_at": t.created_at.isoformat()
+        })
+        
+    return jsonify({"tasks": tasks_data}), 200
+
 @app.route('/api/tasks', methods=['POST'])
 def create_task():
     user = require_auth()
@@ -559,18 +590,43 @@ def create_task():
     if not workspace: return jsonify({"error": "Workspace not found"}), 404
     
     title = data.get('title')
+    if not title or not title.strip():
+        return jsonify({"error": "Task title is required"}), 400
+        
     project_id = data.get('project_id')
+    if project_id:
+        proj = Project.query.get(project_id)
+        if not proj or proj.workspace_id != workspace.id:
+            return jsonify({"error": "Invalid project"}), 400
+            
+    assignee_id = data.get('assignee_id')
+    if assignee_id:
+        member = WorkspaceMember.query.filter_by(workspace_id=workspace.id, user_id=assignee_id).first()
+        if not member:
+            return jsonify({"error": "Assignee must be a member of the workspace"}), 400
+    else:
+        assignee_id = user.id # Default to self if not provided
+
+    status = data.get('status', 'To Do')
+    if status not in ['To Do', 'In Progress', 'Review', 'Done', 'todo', 'completed']:
+        status = 'To Do'
+        
+    priority = data.get('priority', 'Medium')
+    if priority not in ['Low', 'Medium', 'High', 'Urgent']:
+        priority = 'Medium'
+        
     due_date_str = data.get('due_date')
     due_date = datetime.fromisoformat(due_date_str.replace('Z', '+00:00')) if due_date_str else None
-    priority = data.get('priority', 'Medium')
     
     task = Task(
         workspace_id=workspace.id, 
-        title=title, 
+        title=title.strip(), 
+        description=data.get('description'),
         project_id=project_id,
-        assignee_id=user.id, # Auto assign to self for testing
+        assignee_id=assignee_id,
         due_date=due_date,
-        priority=priority
+        priority=priority,
+        status=status
     )
     db.session.add(task)
     db.session.commit()
@@ -579,6 +635,54 @@ def create_task():
     db.session.commit()
     
     return jsonify({"id": task.id, "title": task.title}), 201
+
+@app.route('/api/tasks/<int:task_id>', methods=['PUT', 'PATCH'])
+def update_task(task_id):
+    user = require_auth()
+    if not user: return jsonify({"error": "Unauthorized"}), 401
+    
+    task = Task.query.get_or_404(task_id)
+    workspace, _ = get_current_workspace(user.id, task.workspace_id)
+    if not workspace: return jsonify({"error": "Forbidden"}), 403
+    
+    data = request.get_json()
+    if 'title' in data:
+        title = data.get('title').strip()
+        if not title: return jsonify({"error": "Title cannot be empty"}), 400
+        task.title = title
+    if 'description' in data:
+        task.description = data.get('description')
+    if 'status' in data:
+        status = data.get('status')
+        if status in ['To Do', 'In Progress', 'Review', 'Done', 'todo', 'completed']:
+            task.status = status
+    if 'priority' in data:
+        priority = data.get('priority')
+        if priority in ['Low', 'Medium', 'High', 'Urgent']:
+            task.priority = priority
+    if 'due_date' in data:
+        due_date_str = data.get('due_date')
+        task.due_date = datetime.fromisoformat(due_date_str.replace('Z', '+00:00')) if due_date_str else None
+    if 'project_id' in data:
+        project_id = data.get('project_id')
+        if project_id:
+            proj = Project.query.get(project_id)
+            if not proj or proj.workspace_id != workspace.id:
+                return jsonify({"error": "Invalid project"}), 400
+            task.project_id = project_id
+    if 'assignee_id' in data:
+        assignee_id = data.get('assignee_id')
+        if assignee_id:
+            member = WorkspaceMember.query.filter_by(workspace_id=workspace.id, user_id=assignee_id).first()
+            if not member:
+                return jsonify({"error": "Assignee must be a member of the workspace"}), 400
+            task.assignee_id = assignee_id
+            
+    db.session.commit()
+    log_activity(workspace.id, user.id, 'updated a task', task.title)
+    db.session.commit()
+    
+    return jsonify({"message": "Task updated"})
 
 @app.route('/api/tasks/<int:task_id>/complete', methods=['POST'])
 def complete_task(task_id):
@@ -589,7 +693,7 @@ def complete_task(task_id):
     workspace, _ = get_current_workspace(user.id, task.workspace_id)
     if not workspace: return jsonify({"error": "Forbidden"}), 403
     
-    task.status = 'completed'
+    task.status = 'Done'
     log_activity(workspace.id, user.id, 'completed a task', task.title)
     db.session.commit()
     
