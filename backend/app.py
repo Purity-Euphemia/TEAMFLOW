@@ -43,8 +43,16 @@ class Project(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     workspace_id = db.Column(db.Integer, db.ForeignKey('workspace.id'), nullable=False)
     name = db.Column(db.String(100), nullable=False)
-    status = db.Column(db.String(20), default='active')
+    description = db.Column(db.String(500), nullable=True)
+    status = db.Column(db.String(20), default='Planning') # Planning, Active, On Hold, Completed, Archived
+    start_date = db.Column(db.DateTime, nullable=True)
     deadline = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+class ProjectMember(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    project_id = db.Column(db.Integer, db.ForeignKey('project.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 class Task(db.Model):
@@ -326,6 +334,48 @@ def get_dashboard():
     })
 
 
+@app.route('/api/projects', methods=['GET'])
+def get_projects():
+    user = require_auth()
+    if not user: return jsonify({"error": "Unauthorized"}), 401
+    
+    ws_id = request.args.get('workspace_id')
+    workspace, role = get_current_workspace(user.id, ws_id)
+    if not workspace: return jsonify({"error": "Workspace not found"}), 404
+    
+    projects = Project.query.filter_by(workspace_id=workspace.id).all()
+    projects_data = []
+    for p in projects:
+        # progress calculation
+        total_tasks = Task.query.filter_by(project_id=p.id).count()
+        completed = Task.query.filter_by(project_id=p.id, status='completed').count()
+        progress = int((completed / total_tasks * 100)) if total_tasks > 0 else 0
+        
+        # members
+        members = ProjectMember.query.filter_by(project_id=p.id).all()
+        members_data = []
+        for m in members:
+            u = User.query.get(m.user_id)
+            if u:
+                members_data.append({"id": u.id, "name": u.full_name, "email": u.email})
+                
+        projects_data.append({
+            "id": p.id,
+            "name": p.name,
+            "description": p.description,
+            "status": p.status,
+            "start_date": p.start_date.isoformat() if p.start_date else None,
+            "deadline": p.deadline.isoformat() if p.deadline else None,
+            "progress": progress,
+            "total_tasks": total_tasks,
+            "completed_tasks": completed,
+            "members": members_data,
+            "created_at": p.created_at.isoformat(),
+            "updated_at": p.created_at.isoformat() # Fake updated_at for now unless we add column
+        })
+        
+    return jsonify({"projects": projects_data}), 200
+
 @app.route('/api/projects', methods=['POST'])
 def create_project():
     user = require_auth()
@@ -334,22 +384,145 @@ def create_project():
     data = request.get_json()
     ws_id = data.get('workspace_id')
     name = data.get('name')
+    if not name or not name.strip(): return jsonify({"error": "Project name is required"}), 400
     
     workspace, role = get_current_workspace(user.id, ws_id)
     if not workspace: return jsonify({"error": "Workspace not found"}), 404
-    if role not in ['owner', 'admin']: return jsonify({"error": "Permission denied"}), 403
+    if role not in ['owner', 'admin', 'member']: return jsonify({"error": "Permission denied"}), 403 # Assuming members can create projects too? Or just owner/admin. Let's allow members if authorized.
     
+    status = data.get('status', 'Planning')
+    if status not in ['Planning', 'Active', 'On Hold', 'Completed', 'Archived']:
+        status = 'Planning'
+        
     deadline_str = data.get('deadline')
     deadline = datetime.fromisoformat(deadline_str.replace('Z', '+00:00')) if deadline_str else None
     
-    project = Project(workspace_id=workspace.id, name=name, deadline=deadline)
+    start_date_str = data.get('start_date')
+    start_date = datetime.fromisoformat(start_date_str.replace('Z', '+00:00')) if start_date_str else None
+    
+    project = Project(
+        workspace_id=workspace.id, 
+        name=name.strip(), 
+        description=data.get('description'),
+        status=status,
+        start_date=start_date,
+        deadline=deadline
+    )
     db.session.add(project)
+    db.session.commit()
+    
+    # Add creator as member
+    pm = ProjectMember(project_id=project.id, user_id=user.id)
+    db.session.add(pm)
+    
+    # Add other members
+    member_ids = data.get('members', [])
+    for m_id in member_ids:
+        if m_id != user.id:
+            # Check if they are in the workspace
+            is_ws_member = WorkspaceMember.query.filter_by(workspace_id=workspace.id, user_id=m_id).first()
+            if is_ws_member:
+                db.session.add(ProjectMember(project_id=project.id, user_id=m_id))
+                
     db.session.commit()
     
     log_activity(workspace.id, user.id, 'created a new project', name)
     db.session.commit()
     
     return jsonify({"id": project.id, "name": project.name}), 201
+
+@app.route('/api/projects/<int:project_id>', methods=['GET'])
+def get_project(project_id):
+    user = require_auth()
+    if not user: return jsonify({"error": "Unauthorized"}), 401
+    
+    project = Project.query.get_or_404(project_id)
+    workspace, role = get_current_workspace(user.id, project.workspace_id)
+    if not workspace: return jsonify({"error": "Forbidden"}), 403
+    
+    total_tasks = Task.query.filter_by(project_id=project.id).count()
+    completed = Task.query.filter_by(project_id=project.id, status='completed').count()
+    progress = int((completed / total_tasks * 100)) if total_tasks > 0 else 0
+    
+    members = ProjectMember.query.filter_by(project_id=project.id).all()
+    members_data = []
+    for m in members:
+        u = User.query.get(m.user_id)
+        if u:
+            members_data.append({"id": u.id, "name": u.full_name, "email": u.email})
+            
+    return jsonify({
+        "id": project.id,
+        "name": project.name,
+        "description": project.description,
+        "status": project.status,
+        "start_date": project.start_date.isoformat() if project.start_date else None,
+        "deadline": project.deadline.isoformat() if project.deadline else None,
+        "progress": progress,
+        "total_tasks": total_tasks,
+        "completed_tasks": completed,
+        "members": members_data
+    }), 200
+
+@app.route('/api/projects/<int:project_id>', methods=['PUT', 'PATCH'])
+def update_project(project_id):
+    user = require_auth()
+    if not user: return jsonify({"error": "Unauthorized"}), 401
+    
+    project = Project.query.get_or_404(project_id)
+    workspace, role = get_current_workspace(user.id, project.workspace_id)
+    if not workspace: return jsonify({"error": "Forbidden"}), 403
+    
+    data = request.get_json()
+    if 'name' in data:
+        name = data.get('name').strip()
+        if not name: return jsonify({"error": "Project name cannot be empty"}), 400
+        project.name = name
+    if 'description' in data:
+        project.description = data.get('description')
+    if 'status' in data:
+        status = data.get('status')
+        if status in ['Planning', 'Active', 'On Hold', 'Completed', 'Archived']:
+            project.status = status
+    if 'start_date' in data:
+        start_date_str = data.get('start_date')
+        project.start_date = datetime.fromisoformat(start_date_str.replace('Z', '+00:00')) if start_date_str else None
+    if 'deadline' in data:
+        deadline_str = data.get('deadline')
+        project.deadline = datetime.fromisoformat(deadline_str.replace('Z', '+00:00')) if deadline_str else None
+        
+    if 'members' in data:
+        # Replace members
+        ProjectMember.query.filter_by(project_id=project.id).delete()
+        member_ids = data.get('members', [])
+        # Ensure current user is not removed if desired? Or let them manage freely.
+        for m_id in member_ids:
+            is_ws_member = WorkspaceMember.query.filter_by(workspace_id=workspace.id, user_id=m_id).first()
+            if is_ws_member:
+                db.session.add(ProjectMember(project_id=project.id, user_id=m_id))
+                
+    db.session.commit()
+    log_activity(workspace.id, user.id, 'updated project', project.name)
+    db.session.commit()
+    
+    return jsonify({"message": "Project updated"}), 200
+
+@app.route('/api/projects/<int:project_id>/archive', methods=['POST'])
+def archive_project(project_id):
+    user = require_auth()
+    if not user: return jsonify({"error": "Unauthorized"}), 401
+    
+    project = Project.query.get_or_404(project_id)
+    workspace, role = get_current_workspace(user.id, project.workspace_id)
+    if not workspace: return jsonify({"error": "Forbidden"}), 403
+    
+    project.status = 'Archived'
+    db.session.commit()
+    
+    log_activity(workspace.id, user.id, 'archived project', project.name)
+    db.session.commit()
+    
+    return jsonify({"message": "Project archived"}), 200
 
 @app.route('/api/tasks', methods=['POST'])
 def create_task():
