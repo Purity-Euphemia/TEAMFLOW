@@ -28,6 +28,11 @@ class User(db.Model):
     full_name = db.Column(db.String(100), nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
+    avatar_url = db.Column(db.String(255), nullable=True)
+    timezone = db.Column(db.String(50), default='UTC')
+    theme = db.Column(db.String(20), default='system')
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    last_login_at = db.Column(db.DateTime, nullable=True)
 
 class Workspace(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -114,6 +119,20 @@ class WorkspaceInvitation(db.Model):
     status = db.Column(db.String(20), default='pending') # pending, accepted, canceled
     expires_at = db.Column(db.DateTime, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+class NotificationPreference(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), unique=True, nullable=False)
+    task_assigned = db.Column(db.Boolean, default=True)
+    task_status_changed = db.Column(db.Boolean, default=True)
+    task_completed = db.Column(db.Boolean, default=True)
+    comments = db.Column(db.Boolean, default=True)
+    mentions = db.Column(db.Boolean, default=True)
+    role_changes = db.Column(db.Boolean, default=True)
+    workspace_invitations = db.Column(db.Boolean, default=True)
+    activity_updates = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 with app.app_context():
     db.create_all()
@@ -1303,6 +1322,203 @@ def get_activity():
             "has_more": pagination.has_next
         }
     }), 200
+
+# =======================================================
+# SETTINGS API ROUTES
+# =======================================================
+
+@app.route('/api/settings/profile', methods=['GET', 'PATCH'])
+def settings_profile():
+    user = require_auth()
+    if not user:
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    if request.method == 'GET':
+        return jsonify({
+            'id': user.id,
+            'full_name': user.full_name,
+            'email': user.email,
+            'avatar_url': user.avatar_url,
+            'timezone': user.timezone,
+            'theme': user.theme
+        }), 200
+        
+    data = request.json
+    if 'full_name' in data and data['full_name'].strip():
+        user.full_name = data['full_name'].strip()
+    if 'avatar_url' in data:
+        user.avatar_url = data['avatar_url']
+        
+    db.session.commit()
+    return jsonify({'message': 'Profile updated successfully'})
+
+@app.route('/api/settings/password', methods=['PATCH'])
+def settings_password():
+    user = require_auth()
+    if not user:
+        return jsonify({'error': 'Unauthorized'}), 401
+        
+    data = request.json
+    current_password = data.get('current_password')
+    new_password = data.get('new_password')
+    
+    if not current_password or not new_password:
+        return jsonify({'error': 'Missing passwords'}), 400
+        
+    if not check_password_hash(user.password_hash, current_password):
+        return jsonify({'error': 'Incorrect current password'}), 400
+        
+    if len(new_password) < 8:
+        return jsonify({'error': 'Password must be at least 8 characters'}), 400
+        
+    user.password_hash = generate_password_hash(new_password)
+    db.session.commit()
+    return jsonify({'message': 'Password changed successfully'})
+
+@app.route('/api/settings/notifications', methods=['GET', 'PATCH'])
+def settings_notifications():
+    user = require_auth()
+    if not user:
+        return jsonify({'error': 'Unauthorized'}), 401
+        
+    pref = NotificationPreference.query.filter_by(user_id=user.id).first()
+    if not pref:
+        pref = NotificationPreference(user_id=user.id)
+        db.session.add(pref)
+        db.session.commit()
+        
+    if request.method == 'GET':
+        return jsonify({
+            'task_assigned': pref.task_assigned,
+            'task_status_changed': pref.task_status_changed,
+            'task_completed': pref.task_completed,
+            'comments': pref.comments,
+            'mentions': pref.mentions,
+            'role_changes': pref.role_changes,
+            'workspace_invitations': pref.workspace_invitations,
+            'activity_updates': pref.activity_updates
+        }), 200
+        
+    data = request.json
+    fields = ['task_assigned', 'task_status_changed', 'task_completed', 'comments', 'mentions', 'role_changes', 'workspace_invitations', 'activity_updates']
+    for field in fields:
+        if field in data:
+            setattr(pref, field, bool(data[field]))
+            
+    db.session.commit()
+    return jsonify({'message': 'Notification preferences updated'})
+
+@app.route('/api/settings/appearance', methods=['PATCH'])
+def settings_appearance():
+    user = require_auth()
+    if not user:
+        return jsonify({'error': 'Unauthorized'}), 401
+        
+    data = request.json
+    if 'theme' in data:
+        user.theme = data['theme']
+        
+    db.session.commit()
+    return jsonify({'message': 'Appearance updated'})
+
+@app.route('/api/settings/workspace', methods=['GET', 'PATCH'])
+def settings_workspace():
+    user = require_auth()
+    if not user:
+        return jsonify({'error': 'Unauthorized'}), 401
+        
+    workspace_id = request.headers.get('X-Workspace-ID')
+    if not workspace_id:
+        return jsonify({'error': 'Workspace ID required'}), 400
+        
+    ws, role = get_current_workspace(user.id, workspace_id)
+    if not ws:
+        return jsonify({'error': 'Forbidden'}), 403
+        
+    if request.method == 'GET':
+        return jsonify({
+            'id': ws.id,
+            'name': ws.name,
+            'role': role
+        }), 200
+        
+    if role not in ['owner', 'admin']:
+        return jsonify({'error': 'Forbidden'}), 403
+        
+    data = request.json
+    if 'name' in data and data['name'].strip():
+        ws.name = data['name'].strip()
+        
+    db.session.commit()
+    return jsonify({'message': 'Workspace updated successfully'})
+
+@app.route('/api/settings/workspace', methods=['DELETE'])
+def settings_delete_workspace():
+    user = require_auth()
+    if not user:
+        return jsonify({'error': 'Unauthorized'}), 401
+        
+    workspace_id = request.headers.get('X-Workspace-ID')
+    if not workspace_id:
+        return jsonify({'error': 'Workspace ID required'}), 400
+        
+    ws, role = get_current_workspace(user.id, workspace_id)
+    if not ws or role != 'owner':
+        return jsonify({'error': 'Forbidden. Only the owner can delete a workspace.'}), 403
+        
+    # Check confirmation name
+    data = request.json
+    if not data or data.get('confirmation') != ws.name:
+        return jsonify({'error': 'Confirmation name does not match.'}), 400
+        
+    # Delete cascade
+    Notification.query.filter_by(workspace_id=ws.id).delete()
+    Activity.query.filter_by(workspace_id=ws.id).delete()
+    WorkspaceInvitation.query.filter_by(workspace_id=ws.id).delete()
+    
+    # Task comments need to be deleted
+    task_ids = [t.id for t in Task.query.filter_by(workspace_id=ws.id)]
+    if task_ids:
+        Comment.query.filter(Comment.task_id.in_(task_ids)).delete(synchronize_session=False)
+        
+    Task.query.filter_by(workspace_id=ws.id).delete()
+    
+    project_ids = [p.id for p in Project.query.filter_by(workspace_id=ws.id)]
+    if project_ids:
+        ProjectMember.query.filter(ProjectMember.project_id.in_(project_ids)).delete(synchronize_session=False)
+        
+    Project.query.filter_by(workspace_id=ws.id).delete()
+    WorkspaceMember.query.filter_by(workspace_id=ws.id).delete()
+    
+    db.session.delete(ws)
+    db.session.commit()
+    
+    return jsonify({'message': 'Workspace deleted permanently.'})
+
+@app.route('/api/settings/account', methods=['DELETE'])
+def settings_delete_account():
+    user = require_auth()
+    if not user:
+        return jsonify({'error': 'Unauthorized'}), 401
+        
+    # Prevent deletion if owner of any workspace (must transfer ownership first)
+    owned_workspaces = WorkspaceMember.query.filter_by(user_id=user.id, role='owner').first()
+    if owned_workspaces:
+        return jsonify({'error': 'Cannot delete account while you are the owner of a workspace. Delete or transfer ownership first.'}), 400
+        
+    NotificationPreference.query.filter_by(user_id=user.id).delete()
+    WorkspaceMember.query.filter_by(user_id=user.id).delete()
+    ProjectMember.query.filter_by(user_id=user.id).delete()
+    
+    # Anonymize comments
+    Comment.query.filter_by(author_id=user.id).delete()
+    # Unassign tasks
+    Task.query.filter_by(assignee_id=user.id).update({'assignee_id': None})
+    
+    db.session.delete(user)
+    db.session.commit()
+    session.clear()
+    return jsonify({'message': 'Account deleted.'})
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
