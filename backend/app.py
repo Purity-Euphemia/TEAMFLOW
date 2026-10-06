@@ -86,11 +86,19 @@ class Activity(db.Model):
 
 class Notification(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    recipient_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    workspace_id = db.Column(db.Integer, db.ForeignKey('workspace.id'), nullable=True)
+    actor_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    task_id = db.Column(db.Integer, db.ForeignKey('task.id'), nullable=True)
+    project_id = db.Column(db.Integer, db.ForeignKey('project.id'), nullable=True)
+    comment_id = db.Column(db.Integer, db.ForeignKey('comment.id'), nullable=True)
+    
     type = db.Column(db.String(50), nullable=False)
-    message = db.Column(db.String(255), nullable=False)
+    title = db.Column(db.String(255), nullable=True)
+    message = db.Column(db.Text, nullable=False)
     is_read = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    read_at = db.Column(db.DateTime, nullable=True)
 
 class WorkspaceInvitation(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -136,6 +144,22 @@ def get_current_workspace(user_id, requested_workspace_id=None):
 def log_activity(workspace_id, user_id, action, target_name):
     activity = Activity(workspace_id=workspace_id, user_id=user_id, action=action, target_name=target_name)
     db.session.add(activity)
+
+def create_notification(recipient_id, notif_type, message, workspace_id=None, actor_id=None, task_id=None, project_id=None, comment_id=None, title=None):
+    if recipient_id == actor_id:
+        return # Avoid self-notifications
+    notification = Notification(
+        recipient_id=recipient_id,
+        type=notif_type,
+        message=message,
+        workspace_id=workspace_id,
+        actor_id=actor_id,
+        task_id=task_id,
+        project_id=project_id,
+        comment_id=comment_id,
+        title=title
+    )
+    db.session.add(notification)
 
 # --- AUTH ROUTES ---
 
@@ -327,6 +351,10 @@ def handle_invitations(workspace_id):
         )
         db.session.add(invite)
         log_activity(workspace.id, user.id, f'invited {email} as {invite_role}', None)
+        
+        if existing_user:
+            create_notification(existing_user.id, 'WORKSPACE_INVITATION', f"You were invited to join {workspace.name}", workspace.id, user.id, title="Workspace Invitation")
+            
         db.session.commit()
         
         # Here we pretend to send an email or log the token for development
@@ -427,6 +455,7 @@ def manage_member(workspace_id, member_user_id):
         
         target_member.role = new_role
         log_activity(workspace.id, user.id, f"changed {target_user.full_name}'s role to {new_role}", None)
+        create_notification(target_user.id, 'ROLE_CHANGED', f"Your {workspace.name} workspace role was changed to {new_role}.", workspace.id, user.id, title="Role Changed")
         db.session.commit()
         return jsonify({"message": "Role updated"})
         
@@ -521,7 +550,7 @@ def get_dashboard():
         })
         
     # Notifications (global for user)
-    notifications = Notification.query.filter_by(user_id=user.id, is_read=False).order_by(Notification.created_at.desc()).limit(5).all()
+    notifications = Notification.query.filter_by(recipient_id=user.id, is_read=False).order_by(Notification.created_at.desc()).limit(5).all()
     notifications_data = []
     for n in notifications:
         notifications_data.append({
@@ -850,6 +879,10 @@ def create_task():
     db.session.commit()
     
     log_activity(workspace.id, user.id, 'created a task', title)
+    
+    if assignee_id and assignee_id != user.id:
+        create_notification(assignee_id, 'TASK_ASSIGNED', f"{user.full_name} assigned you a task: {task.title}", workspace.id, user.id, task.id, project_id, title="Task Assigned")
+        
     db.session.commit()
     
     return jsonify({"id": task.id, "title": task.title}), 201
@@ -862,6 +895,9 @@ def update_task(task_id):
     task = Task.query.get_or_404(task_id)
     workspace, _ = get_current_workspace(user.id, task.workspace_id)
     if not workspace: return jsonify({"error": "Forbidden"}), 403
+    
+    old_assignee_id = task.assignee_id
+    old_status = task.status
     
     data = request.get_json()
     if 'title' in data:
@@ -898,8 +934,13 @@ def update_task(task_id):
             
     db.session.commit()
     log_activity(workspace.id, user.id, 'updated a task', task.title)
-    db.session.commit()
     
+    if 'assignee_id' in data and task.assignee_id and task.assignee_id != old_assignee_id and task.assignee_id != user.id:
+        create_notification(task.assignee_id, 'TASK_ASSIGNED', f"{user.full_name} assigned you a task: {task.title}", workspace.id, user.id, task.id, task.project_id, title="Task Assigned")
+        
+    if 'status' in data and task.status != old_status and task.assignee_id and task.assignee_id != user.id:
+        create_notification(task.assignee_id, 'TASK_STATUS_CHANGED', f"{user.full_name} moved your task to {task.status}", workspace.id, user.id, task.id, task.project_id, title="Task Status Changed")
+        
     db.session.commit()
     
     return jsonify({"message": "Task updated"})
@@ -935,6 +976,10 @@ def complete_task(task_id):
     
     task.status = 'Done'
     log_activity(workspace.id, user.id, 'completed a task', task.title)
+    
+    if task.assignee_id and task.assignee_id != user.id:
+        create_notification(task.assignee_id, 'TASK_COMPLETED', f"{user.full_name} completed your task: {task.title}", workspace.id, user.id, task.id, task.project_id, title="Task Completed")
+        
     db.session.commit()
     
     return jsonify({"message": "Task completed"})
@@ -953,9 +998,14 @@ def update_task_status(task_id):
     if status not in ['To Do', 'In Progress', 'Review', 'Done']:
         return jsonify({"error": "Invalid status"}), 400
         
+    old_status = task.status
     task.status = status
     db.session.commit()
     log_activity(workspace.id, user.id, f'moved task to {status}', task.title)
+    
+    if task.status != old_status and task.assignee_id and task.assignee_id != user.id:
+        create_notification(task.assignee_id, 'TASK_STATUS_CHANGED', f"{user.full_name} moved your task to {task.status}", workspace.id, user.id, task.id, task.project_id, title="Task Status Changed")
+        
     db.session.commit()
     
     return jsonify({"message": "Task status updated"})
@@ -1026,6 +1076,10 @@ def create_comment(task_id):
     db.session.commit()
     
     log_activity(workspace.id, user.id, 'commented on task', task.title)
+    
+    if task.assignee_id and task.assignee_id != user.id:
+        create_notification(task.assignee_id, 'TASK_COMMENTED', f"{user.full_name} commented on your task: {task.title}", workspace.id, user.id, task.id, task.project_id, comment.id, title="New Comment")
+        
     db.session.commit()
     
     return jsonify({
@@ -1087,6 +1141,76 @@ def delete_comment(comment_id):
     
     return jsonify({"message": "Comment deleted"}), 200
 
+
+# ==========================================
+# NOTIFICATIONS
+# ==========================================
+
+@app.route('/api/notifications', methods=['GET'])
+def get_notifications():
+    user = require_auth()
+    if not user: return jsonify({"error": "Unauthorized"}), 401
+    
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 20, type=int)
+    
+    pagination = Notification.query.filter_by(recipient_id=user.id).order_by(Notification.created_at.desc()).paginate(page=page, per_page=per_page, error_out=False)
+    
+    notifs = []
+    for n in pagination.items:
+        notifs.append({
+            "id": n.id,
+            "type": n.type,
+            "title": n.title,
+            "message": n.message,
+            "is_read": n.is_read,
+            "created_at": n.created_at.isoformat() + 'Z',
+            "read_at": n.read_at.isoformat() + 'Z' if n.read_at else None,
+            "workspace_id": n.workspace_id,
+            "project_id": n.project_id,
+            "task_id": n.task_id
+        })
+        
+    return jsonify({
+        "notifications": notifs,
+        "has_more": pagination.has_next,
+        "total": pagination.total
+    }), 200
+
+@app.route('/api/notifications/unread-count', methods=['GET'])
+def get_unread_count():
+    user = require_auth()
+    if not user: return jsonify({"error": "Unauthorized"}), 401
+    
+    count = Notification.query.filter_by(recipient_id=user.id, is_read=False).count()
+    return jsonify({"unread_count": count}), 200
+
+@app.route('/api/notifications/<int:notif_id>/read', methods=['PATCH'])
+def mark_notification_read(notif_id):
+    user = require_auth()
+    if not user: return jsonify({"error": "Unauthorized"}), 401
+    
+    notif = Notification.query.get_or_404(notif_id)
+    if notif.recipient_id != user.id:
+        return jsonify({"error": "Permission denied"}), 403
+        
+    notif.is_read = True
+    notif.read_at = datetime.utcnow()
+    db.session.commit()
+    
+    return jsonify({"message": "Notification marked as read"}), 200
+
+@app.route('/api/notifications/read-all', methods=['PATCH'])
+def mark_all_notifications_read():
+    user = require_auth()
+    if not user: return jsonify({"error": "Unauthorized"}), 401
+    
+    Notification.query.filter_by(recipient_id=user.id, is_read=False).update(
+        {"is_read": True, "read_at": datetime.utcnow()}
+    )
+    db.session.commit()
+    
+    return jsonify({"message": "All notifications marked as read"}), 200
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
