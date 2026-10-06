@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import DashboardLayout from '../layouts/DashboardLayout';
+
 import { useAuth } from '../context/AuthContext';
 import { Search, Plus, Mail, MoreVertical, X, Check, Clock, User as UserIcon, Shield, Crown } from 'lucide-react';
 
@@ -46,9 +46,9 @@ export default function TeamPage() {
     try {
       setLoading(true);
       setError(null);
-      const res = await fetch(`/api/workspaces/members?workspace_id=${currentWorkspace.id}`, {credentials: 'include'});
+      const res = await fetch(`http://localhost:5000/api/workspaces/members?workspace_id=${currentWorkspace.id}`, {credentials: 'include'});
       if (!res.ok) throw new Error('Failed to load team members');
-      const data = await fetch(`/api/workspaces/${currentWorkspace.id}/invitations`, {credentials: 'include'});
+      const data = await fetch(`http://localhost:5000/api/workspaces/${currentWorkspace.id}/invitations`, {credentials: 'include'});
       const membersData = await res.json();
       setMembers(membersData.members);
       
@@ -78,7 +78,7 @@ export default function TeamPage() {
     if (!currentWorkspace) return;
     setInviteError(null);
     try {
-      const res = await fetch(`/api/workspaces/${currentWorkspace.id}/invitations`, {
+      const res = await fetch(`http://localhost:5000/api/workspaces/${currentWorkspace.id}/invitations`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: inviteEmail, role: inviteRole }),
@@ -98,7 +98,7 @@ export default function TeamPage() {
   const cancelInvite = async (id: number) => {
     if (!currentWorkspace) return;
     try {
-      const res = await fetch(`/api/workspaces/${currentWorkspace.id}/invitations/${id}`, {
+      const res = await fetch(`http://localhost:5000/api/workspaces/${currentWorkspace.id}/invitations/${id}`, {
         method: 'DELETE',
         credentials: 'include'
       });
@@ -113,7 +113,7 @@ export default function TeamPage() {
   const changeRole = async (memberId: number, newRole: string) => {
     if (!currentWorkspace) return;
     try {
-      const res = await fetch(`/api/workspaces/${currentWorkspace.id}/members/${memberId}`, {
+      const res = await fetch(`http://localhost:5000/api/workspaces/${currentWorkspace.id}/members/${memberId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ role: newRole }),
@@ -128,7 +128,7 @@ export default function TeamPage() {
   const removeMember = async (memberId: number) => {
     if (!currentWorkspace) return;
     try {
-      const res = await fetch(`/api/workspaces/${currentWorkspace.id}/members/${memberId}`, {
+      const res = await fetch(`http://localhost:5000/api/workspaces/${currentWorkspace.id}/members/${memberId}`, {
         method: 'DELETE',
         credentials: 'include'
       });
@@ -153,54 +153,56 @@ export default function TeamPage() {
   };
 
   return (
-    <DashboardLayout>
-      <div style={{ maxWidth: '1000px', margin: '0 auto', padding: '1rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+    <div style={{ backgroundColor: '#000000', margin: '-2rem', padding: '2.5rem 3rem', minHeight: 'calc(100vh - 72px)', fontFamily: 'Inter, sans-serif' }}>
+      <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
+        
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '2.5rem' }}>
           <div>
-            <h1 style={{ fontSize: '1.75rem', fontWeight: 700, marginBottom: '0.5rem' }}>Team</h1>
-            <p style={{ color: 'hsl(var(--text-secondary))' }}>Manage your workspace members, roles, and invitations.</p>
+            <div style={{ color: '#6366F1', fontSize: '0.875rem', fontWeight: 500, marginBottom: '0.5rem' }}>Workspace</div>
+            <h1 style={{ fontSize: '2rem', fontWeight: 700, marginBottom: '0.5rem', color: 'white', letterSpacing: '-0.02em' }}>Team Management</h1>
+            <p style={{ color: '#9CA3AF', fontSize: '0.95rem' }}>Manage your workspace members, roles, and invitations.</p>
           </div>
-          {canManage && (
-            <button className="btn btn-primary" onClick={() => setShowInviteModal(true)}>
-              <Plus size={18} style={{ marginRight: '0.5rem' }} /> Invite Member
-            </button>
-          )}
+          <button 
+            onClick={() => setShowInviteModal(true)}
+            style={{ 
+              backgroundColor: '#6366F1', color: '#111827', border: 'none', 
+              padding: '0.625rem 1.25rem', borderRadius: '8px', 
+              fontWeight: 600, fontSize: '0.875rem', cursor: 'pointer',
+              display: 'inline-block'
+            }}
+          >
+            + Invite Member
+          </button>
         </div>
 
         {/* Stats */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '2rem' }}>
-          <div className="glass" style={{ backgroundColor: 'white', padding: '1.5rem', borderRadius: 'var(--radius-lg)' }}>
-            <h3 style={{ fontSize: '0.875rem', color: 'hsl(var(--text-secondary))', marginBottom: '0.5rem' }}>Total Members</h3>
-            <span style={{ fontSize: '2rem', fontWeight: 600, color: 'hsl(var(--text-primary))' }}>{members.length}</span>
-          </div>
-          <div className="glass" style={{ backgroundColor: 'white', padding: '1.5rem', borderRadius: 'var(--radius-lg)' }}>
-            <h3 style={{ fontSize: '0.875rem', color: 'hsl(var(--text-secondary))', marginBottom: '0.5rem' }}>Admins</h3>
-            <span style={{ fontSize: '2rem', fontWeight: 600, color: 'hsl(var(--text-primary))' }}>{members.filter(m => m.role === 'admin' || m.role === 'owner').length}</span>
-          </div>
-          <div className="glass" style={{ backgroundColor: 'white', padding: '1.5rem', borderRadius: 'var(--radius-lg)' }}>
-            <h3 style={{ fontSize: '0.875rem', color: 'hsl(var(--text-secondary))', marginBottom: '0.5rem' }}>Active</h3>
-            <span style={{ fontSize: '2rem', fontWeight: 600, color: 'hsl(var(--text-primary))' }}>{members.length}</span>
-          </div>
-          <div className="glass" style={{ backgroundColor: 'white', padding: '1.5rem', borderRadius: 'var(--radius-lg)' }}>
-            <h3 style={{ fontSize: '0.875rem', color: 'hsl(var(--text-secondary))', marginBottom: '0.5rem' }}>Pending Invites</h3>
-            <span style={{ fontSize: '2rem', fontWeight: 600, color: 'hsl(var(--text-primary))' }}>{invitations.length}</span>
-          </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '1.5rem' }}>
+          {[
+            { label: 'Total Members' },
+            { label: 'Admins' },
+            { label: 'Active' },
+            { label: 'Pending Invites' }
+          ].map((stat, idx) => (
+            <div key={idx} style={{ backgroundColor: 'white', padding: '1.25rem', borderRadius: '12px', minHeight: '90px' }}>
+              <div style={{ fontSize: '0.875rem', color: '#9CA3AF' }}>{stat.label}</div>
+            </div>
+          ))}
         </div>
 
+        {/* Search */}
         <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem' }}>
-          <div className="input-group" style={{ flex: 1, backgroundColor: 'white', borderRadius: 'var(--radius-md)', border: 'none', boxShadow: 'var(--shadow-sm)' }}>
+          <div style={{ flex: 1, backgroundColor: 'white', borderRadius: '8px', padding: '0 1rem', display: 'flex', alignItems: 'center' }}>
             <input
               type="text"
               placeholder="Search members..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="input-field"
-              style={{ paddingLeft: '1rem', border: 'none', backgroundColor: 'transparent' }}
+              style={{ width: '100%', border: 'none', outline: 'none', padding: '0.875rem 0', fontSize: '0.875rem', color: '#374151' }}
             />
           </div>
           <select 
-            className="input-field" 
-            style={{ width: '150px', backgroundColor: 'white', border: 'none', borderRadius: 'var(--radius-md)', boxShadow: 'var(--shadow-sm)' }}
+            style={{ width: '140px', backgroundColor: 'white', border: 'none', borderRadius: '8px', padding: '0 1rem', outline: 'none', fontSize: '0.875rem', color: '#374151', cursor: 'pointer', appearance: 'none', backgroundImage: 'url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23374151%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 1rem top 50%', backgroundSize: '0.65rem auto' }}
             value={roleFilter}
             onChange={(e) => setRoleFilter(e.target.value)}
           >
@@ -211,192 +213,156 @@ export default function TeamPage() {
           </select>
         </div>
 
-        {loading ? (
-          <div>Loading team...</div>
-        ) : error ? (
-          <div style={{ padding: '2rem', textAlign: 'center', backgroundColor: 'hsla(var(--danger), 0.1)', color: 'hsl(var(--danger))', borderRadius: 'var(--radius-lg)' }}>
-            <p>{error}</p>
-            <button className="btn btn-secondary" onClick={fetchTeam} style={{ marginTop: '1rem' }}>Retry</button>
-          </div>
-        ) : members.length === 1 && invitations.length === 0 ? (
-          <div className="glass" style={{ padding: '4rem 2rem', textAlign: 'center', borderRadius: 'var(--radius-lg)' }}>
-            <h3 style={{ fontSize: '1.25rem', fontWeight: 600, marginBottom: '0.5rem' }}>Your team is just getting started.</h3>
-            <p style={{ color: 'hsl(var(--text-secondary))', marginBottom: '1.5rem' }}>Invite teammates to start collaborating.</p>
-            {canManage && (
-              <button className="btn btn-primary" onClick={() => setShowInviteModal(true)}>
-                <Plus size={18} style={{ marginRight: '0.5rem' }} /> Invite Member
-              </button>
-            )}
-          </div>
-        ) : filteredMembers.length === 0 ? (
-          <div className="glass" style={{ padding: '4rem 2rem', textAlign: 'center', borderRadius: 'var(--radius-lg)' }}>
-            <h3 style={{ fontSize: '1.25rem', fontWeight: 600, marginBottom: '0.5rem' }}>No team members found.</h3>
-            <p style={{ color: 'hsl(var(--text-secondary))', marginBottom: '1.5rem' }}>Try another name or email.</p>
-            <button className="btn btn-secondary" onClick={() => setSearchTerm('')}>Clear Search</button>
-          </div>
-        ) : (
-          <div className="glass" style={{ backgroundColor: 'white', borderRadius: 'var(--radius-lg)', padding: '1.5rem', boxShadow: 'var(--shadow-sm)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem' }}>
-              <div>
-                <h2 style={{ fontSize: '1.25rem', fontWeight: 600, color: 'hsl(var(--text-primary))' }}>Workspace Members</h2>
-                <p style={{ fontSize: '0.875rem', color: 'hsl(var(--text-secondary))', marginTop: '0.25rem' }}>People who currently have access to TeamFlow.</p>
-              </div>
-              <div style={{ fontSize: '0.875rem', color: 'hsl(var(--text-secondary))' }}>
-                {filteredMembers.length} members
-              </div>
+        {/* List Container */}
+        <div style={{ backgroundColor: 'white', borderRadius: '12px', padding: '1.5rem', minHeight: '300px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem' }}>
+            <div>
+              <h2 style={{ fontSize: '1.35rem', fontWeight: 700, color: '#E5E7EB', marginBottom: '0.35rem' }}>Workspace Members</h2>
+              <p style={{ fontSize: '0.875rem', color: '#6B7280' }}>People who currently have access to TeamFlow.</p>
             </div>
+            <div style={{ fontSize: '0.875rem', color: '#9CA3AF', marginTop: '1rem' }}>
+              {filteredMembers.length} members
+            </div>
+          </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              {filteredMembers.map((member, index) => (
-                <div key={member.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem 0', borderTop: index === 0 ? '1px solid hsl(var(--border-subtle))' : '1px solid hsl(var(--border-subtle))' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
-                    <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: 'hsl(var(--bg-tertiary))', color: 'hsl(var(--text-primary))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600, fontSize: '0.875rem' }}>
-                      {member.name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0,2)}
-                    </div>
-                    <div>
-                      <div style={{ fontSize: '0.875rem', color: 'hsl(var(--text-secondary))' }}>{member.email}</div>
-                    </div>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            {filteredMembers.map((member, index) => (
+              <div key={member.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1.25rem 0', borderTop: index === 0 ? '1px solid #F3F4F6' : '1px solid #F3F4F6' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
+                  <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#F3F4F6', color: '#374151', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600, fontSize: '0.875rem' }}>
+                    {member.name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0,2)}
                   </div>
-
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
-                    {getRoleBadge(member.role)}
-                    
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.375rem', fontSize: '0.875rem', color: 'hsl(142, 70%, 40%)', fontWeight: 500 }}>
-                      <div style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: 'currentColor' }} /> Active
-                    </span>
-
-                    <div style={{ width: '80px', textAlign: 'right' }}>
-                      {member.role === 'owner' ? (
-                        <span style={{ fontSize: '0.875rem', color: 'hsl(var(--text-secondary))' }}>Protected</span>
-                      ) : canManage ? (
-                        <div className="dropdown" style={{ position: 'relative', display: 'inline-block' }}>
-                          <span style={{ fontSize: '0.875rem', color: 'hsl(240, 80%, 60%)', cursor: 'pointer', fontWeight: 500 }} onClick={(e) => {
-                            const menu = e.currentTarget.nextElementSibling as HTMLElement;
-                            if (menu) menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
-                          }}>Manage</span>
-                          <div className="dropdown-menu" style={{ display: 'none', position: 'absolute', right: 0, top: '100%', backgroundColor: 'white', border: '1px solid hsl(var(--border-subtle))', borderRadius: 'var(--radius-md)', padding: '0.5rem', minWidth: '150px', zIndex: 10, boxShadow: 'var(--shadow-md)' }}>
-                            {member.role === 'member' && <button className="btn" style={{ width: '100%', textAlign: 'left', padding: '0.5rem', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.875rem' }} onClick={() => changeRole(member.id, 'admin')}>Promote to Admin</button>}
-                            {member.role === 'admin' && <button className="btn" style={{ width: '100%', textAlign: 'left', padding: '0.5rem', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.875rem' }} onClick={() => changeRole(member.id, 'member')}>Demote to Member</button>}
-                            <div style={{ height: '1px', backgroundColor: 'hsl(var(--border-subtle))', margin: '0.25rem 0' }} />
-                            <button className="btn" style={{ width: '100%', textAlign: 'left', padding: '0.5rem', background: 'none', border: 'none', cursor: 'pointer', color: 'hsl(var(--danger))', fontSize: '0.875rem' }} onClick={() => setShowRemoveConfirm(member.id)}>Remove</button>
-                          </div>
-                        </div>
-                      ) : <span style={{ fontSize: '0.875rem', color: 'transparent' }}>Manage</span>}
-                    </div>
+                  <div style={{ fontSize: '0.875rem', color: '#6B7280' }}>
+                    {member.email}
                   </div>
                 </div>
-              ))}
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '2rem' }}>
+                  <span style={{ padding: '0.25rem 0.75rem', borderRadius: '6px', fontSize: '0.875rem', fontWeight: 500, border: '1px solid #E5E7EB', color: '#374151', textTransform: 'capitalize' }}>
+                    {member.role}
+                  </span>
+                  
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.375rem', fontSize: '0.875rem', color: '#10B981', fontWeight: 500 }}>
+                    <div style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#10B981' }} /> Active
+                  </span>
+
+                  <div style={{ width: '60px', textAlign: 'right' }}>
+                    {member.role === 'owner' ? (
+                      <span style={{ fontSize: '0.875rem', color: '#6B7280' }}>Protected</span>
+                    ) : canManage ? (
+                      <div className="dropdown" style={{ position: 'relative', display: 'inline-block' }}>
+                        <span style={{ fontSize: '0.875rem', color: '#6366F1', cursor: 'pointer', fontWeight: 500 }} onClick={(e) => {
+                          const menu = e.currentTarget.nextElementSibling as HTMLElement;
+                          if (menu) menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
+                        }}>Manage</span>
+                        <div className="dropdown-menu" style={{ display: 'none', position: 'absolute', right: 0, top: '100%', backgroundColor: 'white', border: '1px solid #E5E7EB', borderRadius: '8px', padding: '0.5rem', minWidth: '150px', zIndex: 10, boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}>
+                          {member.role === 'member' && <button className="btn" style={{ width: '100%', textAlign: 'left', padding: '0.5rem', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.875rem' }} onClick={() => changeRole(member.id, 'admin')}>Promote to Admin</button>}
+                          {member.role === 'admin' && <button className="btn" style={{ width: '100%', textAlign: 'left', padding: '0.5rem', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.875rem' }} onClick={() => changeRole(member.id, 'member')}>Demote to Member</button>}
+                          <div style={{ height: '1px', backgroundColor: '#E5E7EB', margin: '0.25rem 0' }} />
+                          <button className="btn" style={{ width: '100%', textAlign: 'left', padding: '0.5rem', background: 'none', border: 'none', cursor: 'pointer', color: '#DC2626', fontSize: '0.875rem' }} onClick={() => setShowRemoveConfirm(member.id)}>Remove</button>
+                        </div>
+                      </div>
+                    ) : <span style={{ fontSize: '0.875rem', color: 'transparent' }}>Manage</span>}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Pending Invitations */}
+        <div style={{ backgroundColor: 'white', borderRadius: '12px', marginTop: '2rem', border: '1px solid #1F2937' }}>
+          <div style={{ padding: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #F3F4F6' }}>
+            <div>
+              <h3 style={{ fontSize: '1.125rem', fontWeight: 600, color: '#E5E7EB' }}>Pending Invitations</h3>
+              <p style={{ color: '#9CA3AF', fontSize: '0.875rem', marginTop: '0.25rem' }}>Invitations waiting to be accepted.</p>
+            </div>
+            <button style={{ color: '#6366F1', fontWeight: 500, background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.875rem' }}>View all</button>
+          </div>
+          <div style={{ padding: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#D97706', fontSize: '0.875rem', fontWeight: 500 }}>
+              <div style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#D97706' }} />
+              Pending &middot; Expires in 5 days
+            </div>
+            <div style={{ display: 'flex', gap: '0.75rem' }}>
+              <button style={{ padding: '0.5rem 1rem', borderRadius: '8px', border: '1px solid #E5E7EB', background: 'white', fontSize: '0.875rem', fontWeight: 500, cursor: 'pointer', color: '#374151' }}>Resend</button>
+              <button style={{ padding: '0.5rem 1rem', borderRadius: '8px', border: '1px solid #E5E7EB', background: 'white', fontSize: '0.875rem', fontWeight: 500, cursor: 'pointer', color: '#374151' }}>Cancel</button>
+            </div>
+          </div>
+        </div>
+
+        {/* Modals */}
+        {showInviteModal && (
+          <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+            <div style={{ backgroundColor: 'white', padding: '2rem', borderRadius: '12px', width: '100%', maxWidth: '400px', color: '#111827' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                <h2 style={{ fontSize: '1.25rem', fontWeight: 600 }}>Invite Member</h2>
+                <button onClick={() => setShowInviteModal(false)} style={{ color: '#9CA3AF', background: 'none', border: 'none', cursor: 'pointer' }}><X size={20}/></button>
+              </div>
+              
+              {inviteError && (
+                <div style={{ backgroundColor: '#FEE2E2', color: '#DC2626', padding: '0.75rem', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.875rem' }}>
+                  {inviteError}
+                </div>
+              )}
+              
+              <form onSubmit={handleInvite} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.875rem', fontWeight: 500 }}>Email Address</label>
+                  <div style={{ position: 'relative' }}>
+                    <Mail size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF' }} />
+                    <input
+                      type="email"
+                      required
+                      value={inviteEmail}
+                      onChange={(e) => setInviteEmail(e.target.value)}
+                      placeholder="colleague@example.com"
+                      style={{ width: '100%', padding: '0.75rem 1rem 0.75rem 2.75rem', borderRadius: '8px', border: '1px solid #E5E7EB', outline: 'none' }}
+                    />
+                  </div>
+                </div>
+                
+                <div>
+                  <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.875rem', fontWeight: 500 }}>Role</label>
+                  <select 
+                    style={{ width: '100%', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid #E5E7EB', outline: 'none', backgroundColor: 'white' }}
+                    value={inviteRole}
+                    onChange={(e) => setInviteRole(e.target.value)}
+                  >
+                    <option value="member">Member</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '0.5rem' }}>
+                  <button type="button" style={{ padding: '0.625rem 1rem', borderRadius: '8px', border: '1px solid #E5E7EB', background: 'white', fontWeight: 500, cursor: 'pointer' }} onClick={() => setShowInviteModal(false)}>Cancel</button>
+                  <button type="submit" style={{ padding: '0.625rem 1rem', borderRadius: '8px', border: 'none', background: '#6366F1', color: 'white', fontWeight: 500, cursor: 'pointer' }}>Send Invite</button>
+                </div>
+              </form>
             </div>
           </div>
         )}
 
-        {/* Pending Invites */}
-        {invitations.length > 0 && (
-          <div style={{ marginTop: '3rem' }}>
-            <h3 style={{ fontSize: '1.25rem', fontWeight: 600, marginBottom: '1.5rem' }}>Pending Invitations</h3>
-            <div className="glass" style={{ borderRadius: 'var(--radius-lg)', overflow: 'hidden', overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '600px' }}>
-                <thead>
-                  <tr style={{ backgroundColor: 'hsla(var(--bg-secondary), 0.5)', borderBottom: '1px solid hsl(var(--border-subtle))' }}>
-                    <th style={{ padding: '1rem', textAlign: 'left', fontSize: '0.75rem', fontWeight: 600, color: 'hsl(var(--text-secondary))', textTransform: 'uppercase' }}>Email</th>
-                    <th style={{ padding: '1rem', textAlign: 'left', fontSize: '0.75rem', fontWeight: 600, color: 'hsl(var(--text-secondary))', textTransform: 'uppercase' }}>Role</th>
-                    <th style={{ padding: '1rem', textAlign: 'left', fontSize: '0.75rem', fontWeight: 600, color: 'hsl(var(--text-secondary))', textTransform: 'uppercase' }}>Invited By</th>
-                    {canManage && <th style={{ padding: '1rem', textAlign: 'right', fontSize: '0.75rem', fontWeight: 600, color: 'hsl(var(--text-secondary))', textTransform: 'uppercase' }}>Action</th>}
-                  </tr>
-                </thead>
-                <tbody>
-                  {invitations.map(inv => (
-                    <tr key={inv.id} style={{ borderBottom: '1px solid hsl(var(--border-subtle))' }}>
-                      <td style={{ padding: '1rem', fontWeight: 500 }}>{inv.email}</td>
-                      <td style={{ padding: '1rem' }}>{getRoleBadge(inv.role)}</td>
-                      <td style={{ padding: '1rem', fontSize: '0.875rem', color: 'hsl(var(--text-secondary))' }}>{inv.inviter_name}</td>
-                      {canManage && (
-                        <td style={{ padding: '1rem', textAlign: 'right' }}>
-                          <button className="btn btn-secondary" style={{ padding: '0.25rem 0.75rem', fontSize: '0.75rem', color: 'hsl(var(--danger))', borderColor: 'hsl(var(--border-subtle))' }} onClick={() => cancelInvite(inv.id)}>Cancel</button>
-                        </td>
-                      )}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+        {/* Remove Confirm Modal */}
+        {showRemoveConfirm && (
+          <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+            <div style={{ backgroundColor: 'white', padding: '2rem', borderRadius: '12px', width: '100%', maxWidth: '400px', textAlign: 'center', color: '#111827' }}>
+              <div style={{ width: '48px', height: '48px', borderRadius: '50%', backgroundColor: '#FEE2E2', color: '#DC2626', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem' }}>
+                <X size={24} />
+              </div>
+              <h2 style={{ fontSize: '1.25rem', fontWeight: 600, marginBottom: '0.5rem' }}>Remove this member?</h2>
+              <p style={{ color: '#6B7280', marginBottom: '1.5rem', fontSize: '0.875rem' }}>
+                They will lose access to this workspace and its projects. This action cannot be undone.
+              </p>
+              <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem' }}>
+                <button style={{ padding: '0.625rem 1rem', borderRadius: '8px', border: '1px solid #E5E7EB', background: 'white', fontWeight: 500, cursor: 'pointer' }} onClick={() => setShowRemoveConfirm(null)}>Cancel</button>
+                <button style={{ padding: '0.625rem 1rem', borderRadius: '8px', border: 'none', background: '#DC2626', color: 'white', fontWeight: 500, cursor: 'pointer' }} onClick={() => removeMember(showRemoveConfirm)}>Remove Member</button>
+              </div>
             </div>
           </div>
         )}
 
       </div>
-
-      {/* Invite Modal */}
-      {showInviteModal && (
-        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
-          <div className="glass" style={{ backgroundColor: 'white', padding: '2rem', borderRadius: 'var(--radius-xl)', width: '100%', maxWidth: '400px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-              <h2 style={{ fontSize: '1.25rem', fontWeight: 600 }}>Invite Member</h2>
-              <button onClick={() => setShowInviteModal(false)} style={{ color: 'hsl(var(--text-muted))', background: 'none', border: 'none', cursor: 'pointer' }}><X size={20}/></button>
-            </div>
-            
-            {inviteError && (
-              <div style={{ backgroundColor: 'hsla(var(--danger), 0.1)', color: 'hsl(var(--danger))', padding: '0.75rem', borderRadius: 'var(--radius-md)', marginBottom: '1rem', fontSize: '0.875rem' }}>
-                {inviteError}
-              </div>
-            )}
-            
-            <form onSubmit={handleInvite} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-              <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.875rem', fontWeight: 500 }}>Email Address</label>
-                <div className="input-group">
-                  <Mail size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'hsl(var(--text-muted))' }} />
-                  <input
-                    type="email"
-                    required
-                    value={inviteEmail}
-                    onChange={(e) => setInviteEmail(e.target.value)}
-                    placeholder="colleague@example.com"
-                    className="input-field"
-                    style={{ paddingLeft: '2.75rem' }}
-                  />
-                </div>
-              </div>
-              
-              <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.875rem', fontWeight: 500 }}>Role</label>
-                <select 
-                  className="input-field"
-                  value={inviteRole}
-                  onChange={(e) => setInviteRole(e.target.value)}
-                >
-                  <option value="member">Member</option>
-                  <option value="admin">Admin</option>
-                </select>
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '0.5rem' }}>
-                <button type="button" className="btn btn-secondary" onClick={() => setShowInviteModal(false)}>Cancel</button>
-                <button type="submit" className="btn btn-primary">Send Invite</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Remove Confirm Modal */}
-      {showRemoveConfirm && (
-        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
-          <div className="glass" style={{ backgroundColor: 'white', padding: '2rem', borderRadius: 'var(--radius-xl)', width: '100%', maxWidth: '400px', textAlign: 'center' }}>
-            <div style={{ width: '48px', height: '48px', borderRadius: '50%', backgroundColor: 'hsla(var(--danger), 0.1)', color: 'hsl(var(--danger))', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem' }}>
-              <X size={24} />
-            </div>
-            <h2 style={{ fontSize: '1.25rem', fontWeight: 600, marginBottom: '0.5rem' }}>Remove this member?</h2>
-            <p style={{ color: 'hsl(var(--text-secondary))', marginBottom: '1.5rem', fontSize: '0.875rem' }}>
-              They will lose access to this workspace and its projects. This action cannot be undone.
-            </p>
-            <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem' }}>
-              <button className="btn btn-secondary" onClick={() => setShowRemoveConfirm(null)}>Cancel</button>
-              <button className="btn btn-primary" style={{ backgroundColor: 'hsl(var(--danger))', color: 'white', borderColor: 'hsl(var(--danger))' }} onClick={() => removeMember(showRemoveConfirm)}>Remove Member</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-    </DashboardLayout>
+    </div>
   );
 }

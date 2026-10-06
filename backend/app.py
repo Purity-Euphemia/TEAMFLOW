@@ -242,7 +242,7 @@ def get_workspace_members():
                 "name": u.full_name,
                 "email": u.email,
                 "role": m.role,
-                "joined_at": m.created_at.isoformat()
+                "joined_at": ""
             })
             
     return jsonify({"members": team_data}), 200

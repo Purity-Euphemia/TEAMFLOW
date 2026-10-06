@@ -7,18 +7,26 @@ type User = {
   email: string;
 };
 
+export type Workspace = {
+  id: number;
+  name: string;
+};
+
 type AuthContextType = {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   checkAuth: () => Promise<void>;
   setUser: (user: User | null) => void;
+  currentWorkspace: Workspace | null;
+  setCurrentWorkspace: (ws: Workspace | null) => void;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [currentWorkspace, setCurrentWorkspace] = useState<Workspace | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   const checkAuth = async () => {
@@ -32,12 +40,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (response.ok) {
         const data = await response.json();
         setUser(data.user);
+        if (data.workspace_id) {
+          setCurrentWorkspace({ id: data.workspace_id, name: data.workspace_name });
+        }
       } else {
         setUser(null);
+        setCurrentWorkspace(null);
       }
     } catch (error) {
       console.error('Auth check failed:', error);
       setUser(null);
+      setCurrentWorkspace(null);
     } finally {
       setIsLoading(false);
     }
@@ -48,7 +61,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated: !!user, isLoading, checkAuth, setUser }}>
+    <AuthContext.Provider value={{ user, isAuthenticated: !!user, isLoading, checkAuth, setUser, currentWorkspace, setCurrentWorkspace }}>
       {children}
     </AuthContext.Provider>
   );
