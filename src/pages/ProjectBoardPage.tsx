@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import TaskComments from '../components/TaskComments';
 import { 
   Plus, Search, Clock, ChevronRight, AlertCircle, X, CheckCircle2, MoreVertical
 } from 'lucide-react';
@@ -703,13 +704,8 @@ export default function ProjectBoardPage() {
                   </div>
                 </div>
 
-                {/* Comments and Activity Placeholders */}
-                <div style={{ borderTop: '1px solid hsl(var(--border-subtle))', paddingTop: '1.5rem', marginTop: '0.5rem' }}>
-                  <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '1rem' }}>Activity & Comments</h3>
-                  <div style={{ textAlign: 'center', padding: '2rem 1rem', border: '1px dashed hsl(var(--border-subtle))', borderRadius: 'var(--radius-md)', color: 'hsl(var(--text-muted))' }}>
-                    <p style={{ fontSize: '0.875rem' }}>No comments or activity yet.</p>
-                  </div>
-                </div>
+                {/* Comments */}
+                <TaskComments taskId={selectedTask.id} />
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '1rem' }}>
                   <button className="btn btn-secondary" style={{ color: 'hsl(var(--danger))', borderColor: 'hsl(var(--border-subtle))' }} onClick={() => setShowDeleteConfirm(selectedTask.id)}>Delete Task</button>

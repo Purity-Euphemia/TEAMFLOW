@@ -68,6 +68,14 @@ class Task(db.Model):
     due_date = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+class Comment(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    task_id = db.Column(db.Integer, db.ForeignKey('task.id'), nullable=False)
+    author_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    content = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
 class Activity(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     workspace_id = db.Column(db.Integer, db.ForeignKey('workspace.id'), nullable=False)
@@ -182,7 +190,15 @@ def get_me():
     user = require_auth()
     if not user:
         return jsonify({"error": "Unauthorized"}), 401
-    return jsonify({"user": {"id": user.id, "full_name": user.full_name, "email": user.email}}), 200
+        
+    ws, role = get_current_workspace(user.id)
+    response_data = {"user": {"id": user.id, "full_name": user.full_name, "email": user.email}}
+    
+    if ws:
+        response_data["workspace_id"] = ws.id
+        response_data["workspace_name"] = ws.name
+        
+    return jsonify(response_data), 200
 
 
 # --- DASHBOARD & WORKSPACE ROUTES ---
@@ -317,6 +333,31 @@ def handle_invitations(workspace_id):
         print(f"DEV MOCK EMAIL: Invite {email} to workspace {workspace.name}. Link: http://localhost:5173/accept-invite?token={token}")
         
         return jsonify({"message": "Invitation created", "token": token}), 201
+
+@app.route('/api/workspaces/<int:workspace_id>/invitations/<int:invite_id>/resend', methods=['POST'])
+def resend_invitation(workspace_id, invite_id):
+    user = require_auth()
+    if not user: return jsonify({"error": "Unauthorized"}), 401
+    
+    workspace, role = get_current_workspace(user.id, workspace_id)
+    if not workspace or role not in ['owner', 'admin']:
+        return jsonify({"error": "Permission denied"}), 403
+        
+    invite = WorkspaceInvitation.query.get(invite_id)
+    if not invite or invite.workspace_id != workspace.id:
+        return jsonify({"error": "Invitation not found"}), 404
+        
+    if invite.status != 'pending':
+        return jsonify({"error": "Invitation is no longer pending"}), 400
+        
+    # Reset expiration and token
+    invite.token = secrets.token_urlsafe(32)
+    invite.expires_at = datetime.utcnow() + timedelta(days=7)
+    db.session.commit()
+    
+    print(f"DEV MOCK EMAIL: Resend invite {invite.email} to workspace {workspace.name}. Link: http://localhost:5173/accept-invite?token={invite.token}")
+    
+    return jsonify({"message": "Invitation resent successfully"}), 200
 
 @app.route('/api/workspaces/<int:workspace_id>/invitations/<int:invite_id>', methods=['DELETE'])
 def cancel_invitation(workspace_id, invite_id):
@@ -876,6 +917,7 @@ def delete_task(task_id):
     if role not in ['owner', 'admin'] and task.assignee_id != user.id:
         return jsonify({"error": "Permission denied"}), 403
         
+    Comment.query.filter_by(task_id=task.id).delete()
     db.session.delete(task)
     log_activity(workspace.id, user.id, 'deleted a task', task.title)
     db.session.commit()
@@ -917,6 +959,126 @@ def update_task_status(task_id):
     db.session.commit()
     
     return jsonify({"message": "Task status updated"})
+
+# ==========================================
+# COMMENTS
+# ==========================================
+
+@app.route('/api/tasks/<int:task_id>/comments', methods=['GET'])
+def get_task_comments(task_id):
+    user = require_auth()
+    if not user: return jsonify({"error": "Unauthorized"}), 401
+    
+    task = Task.query.get_or_404(task_id)
+    workspace, _ = get_current_workspace(user.id, task.workspace_id)
+    if not workspace: return jsonify({"error": "Forbidden"}), 403
+    
+    comments = Comment.query.filter_by(task_id=task.id).order_by(Comment.created_at.desc()).all()
+    
+    # Enrich with author details
+    comment_data = []
+    for c in comments:
+        author = User.query.get(c.author_id)
+        comment_data.append({
+            "id": c.id,
+            "task_id": c.task_id,
+            "author_id": c.author_id,
+            "author_name": author.name if author else 'Unknown User',
+            "content": c.content,
+            "created_at": c.created_at.isoformat() + 'Z',
+            "updated_at": c.updated_at.isoformat() + 'Z'
+        })
+        
+    return jsonify({"comments": comment_data}), 200
+
+@app.route('/api/tasks/<int:task_id>/comments', methods=['POST'])
+def create_comment(task_id):
+    user = require_auth()
+    if not user: return jsonify({"error": "Unauthorized"}), 401
+    
+    task = Task.query.get_or_404(task_id)
+    workspace, _ = get_current_workspace(user.id, task.workspace_id)
+    if not workspace: return jsonify({"error": "Forbidden"}), 403
+    
+    data = request.get_json()
+    content = data.get('content', '').strip()
+    
+    if not content:
+        return jsonify({"error": "Comment content cannot be empty"}), 400
+        
+    if len(content) > 5000:
+        return jsonify({"error": "Comment content exceeds maximum length"}), 400
+        
+    comment = Comment(
+        task_id=task.id,
+        author_id=user.id,
+        content=content
+    )
+    db.session.add(comment)
+    db.session.commit()
+    
+    log_activity(workspace.id, user.id, 'commented on task', task.title)
+    db.session.commit()
+    
+    return jsonify({
+        "id": comment.id,
+        "task_id": comment.task_id,
+        "author_id": comment.author_id,
+        "author_name": user.name,
+        "content": comment.content,
+        "created_at": comment.created_at.isoformat() + 'Z',
+        "updated_at": comment.updated_at.isoformat() + 'Z'
+    }), 201
+
+@app.route('/api/comments/<int:comment_id>', methods=['PATCH'])
+def edit_comment(comment_id):
+    user = require_auth()
+    if not user: return jsonify({"error": "Unauthorized"}), 401
+    
+    comment = Comment.query.get_or_404(comment_id)
+    
+    # Must be the author
+    if comment.author_id != user.id:
+        return jsonify({"error": "Permission denied"}), 403
+        
+    task = Task.query.get_or_404(comment.task_id)
+    workspace, _ = get_current_workspace(user.id, task.workspace_id)
+    if not workspace: return jsonify({"error": "Forbidden"}), 403
+    
+    data = request.get_json()
+    content = data.get('content', '').strip()
+    
+    if not content:
+        return jsonify({"error": "Comment content cannot be empty"}), 400
+        
+    if len(content) > 5000:
+        return jsonify({"error": "Comment content exceeds maximum length"}), 400
+        
+    comment.content = content
+    db.session.commit()
+    
+    return jsonify({"message": "Comment updated"}), 200
+
+@app.route('/api/comments/<int:comment_id>', methods=['DELETE'])
+def delete_comment(comment_id):
+    user = require_auth()
+    if not user: return jsonify({"error": "Unauthorized"}), 401
+    
+    comment = Comment.query.get_or_404(comment_id)
+    
+    # Must be the author
+    if comment.author_id != user.id:
+        return jsonify({"error": "Permission denied"}), 403
+        
+    task = Task.query.get_or_404(comment.task_id)
+    workspace, _ = get_current_workspace(user.id, task.workspace_id)
+    if not workspace: return jsonify({"error": "Forbidden"}), 403
+    
+    db.session.delete(comment)
+    db.session.commit()
+    
+    return jsonify({"message": "Comment deleted"}), 200
+
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
