@@ -184,6 +184,26 @@ export default function TasksPage() {
     }
   };
 
+  const updateTaskStatus = async (taskId: number, newStatus: string) => {
+    // Optimistic update
+    const previousTasks = [...tasks];
+    setTasks(tasks.map(t => t.id === taskId ? { ...t, status: newStatus } : t));
+    
+    try {
+      const res = await fetch(`http://localhost:5000/api/tasks/${taskId}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ status: newStatus })
+      });
+      if (!res.ok) throw new Error('Failed');
+    } catch (err) {
+      console.error(err);
+      setTasks(previousTasks);
+      alert('Unable to update task status. Please try again.');
+    }
+  };
+
   const handleToggleComplete = async (task: Task) => {
     const newStatus = task.status === 'Done' || task.status === 'completed' ? 'To Do' : 'Done';
     try {
@@ -447,12 +467,20 @@ export default function TasksPage() {
                         </span>
                       </td>
                       <td style={{ padding: '1rem 1.5rem' }}>
-                        <span style={{ 
-                          fontSize: '0.75rem', fontWeight: 600, padding: '0.25rem 0.5rem', borderRadius: '9999px',
-                          color: getStatusColor(task.status), backgroundColor: `hsla(from ${getStatusColor(task.status)} h s l / 0.1)`
-                        }}>
-                          {task.status === 'completed' ? 'Done' : task.status === 'todo' ? 'To Do' : task.status}
-                        </span>
+                        <select
+                          value={task.status === 'completed' ? 'Done' : task.status === 'todo' ? 'To Do' : task.status}
+                          onChange={(e) => updateTaskStatus(task.id, e.target.value)}
+                          style={{
+                            fontSize: '0.75rem', fontWeight: 600, padding: '0.25rem 0.5rem', borderRadius: '9999px',
+                            color: getStatusColor(task.status), backgroundColor: `hsla(from ${getStatusColor(task.status)} h s l / 0.1)`,
+                            border: '1px solid transparent', outline: 'none', cursor: 'pointer', appearance: 'none', textAlign: 'center'
+                          }}
+                        >
+                          <option value="To Do">To Do</option>
+                          <option value="In Progress">In Progress</option>
+                          <option value="Review">Review</option>
+                          <option value="Done">Done</option>
+                        </select>
                       </td>
                       <td style={{ padding: '1rem 1.5rem', fontSize: '0.875rem' }}>
                         {task.due_date ? (

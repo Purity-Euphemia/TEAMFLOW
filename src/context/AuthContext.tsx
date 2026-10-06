@@ -10,6 +10,7 @@ type User = {
 export type Workspace = {
   id: number;
   name: string;
+  role?: string;
 };
 
 type AuthContextType = {

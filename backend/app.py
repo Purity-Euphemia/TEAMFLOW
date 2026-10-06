@@ -732,7 +732,7 @@ def get_project(project_id):
     if not workspace: return jsonify({"error": "Forbidden"}), 403
     
     total_tasks = Task.query.filter_by(project_id=project.id).count()
-    completed = Task.query.filter_by(project_id=project.id, status='completed').count()
+    completed = Task.query.filter(Task.project_id == project.id, Task.status.in_(['Done', 'completed'])).count()
     progress = int((completed / total_tasks * 100)) if total_tasks > 0 else 0
     
     members = ProjectMember.query.filter_by(project_id=project.id).all()

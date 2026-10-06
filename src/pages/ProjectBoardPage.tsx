@@ -27,6 +27,7 @@ interface Task {
   priority: string;
   status: string;
   due_date: string | null;
+  updated_at?: string;
 }
 
 interface WorkspaceMember {
@@ -58,6 +59,9 @@ export default function ProjectBoardPage() {
   // Drag state
   const [draggingTaskId, setDraggingTaskId] = useState<number | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<number | null>(null);
+
+  // Tabs
+  const [activeTab, setActiveTab] = useState('Board');
 
   // Modal
   const [showModal, setShowModal] = useState(false);
@@ -247,6 +251,36 @@ export default function ProjectBoardPage() {
     }
   };
 
+  const handleUpdateMembers = async (memberIds: number[]) => {
+    try {
+      const res = await fetch(`http://localhost:5000/api/projects/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ members: memberIds })
+      });
+      if (res.ok) {
+        fetchProjectData();
+      } else {
+        alert('Failed to update members');
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const addMemberToProject = (userId: number) => {
+    if (!project) return;
+    const mIds = project.members.map(m => m.id);
+    if (!mIds.includes(userId)) handleUpdateMembers([...mIds, userId]);
+  };
+
+  const removeMemberFromProject = (userId: number) => {
+    if (!project) return;
+    const mIds = project.members.map(m => m.id).filter(mid => mid !== userId);
+    handleUpdateMembers(mIds);
+  };
+
   const handleDragStart = (e: React.DragEvent, taskId: number) => {
     setDraggingTaskId(taskId);
     e.dataTransfer.setData('text/plain', taskId.toString());
@@ -430,54 +464,60 @@ export default function ProjectBoardPage() {
       {/* Sub-Navigation */}
       <div style={{ display: 'flex', gap: '2rem', borderBottom: '1px solid hsl(var(--border-subtle))', paddingBottom: '0.25rem' }}>
         {['Overview', 'Board', 'Tasks', 'Members', 'Activity'].map(tab => (
-          <div key={tab} style={{ 
-            fontSize: '0.875rem', fontWeight: tab === 'Board' ? 600 : 400, 
-            color: tab === 'Board' ? 'hsl(var(--accent-primary))' : 'hsl(var(--text-secondary))', 
-            cursor: tab === 'Board' ? 'default' : 'pointer', 
-            borderBottom: tab === 'Board' ? '2px solid hsl(var(--accent-primary))' : 'none', 
-            paddingBottom: '0.5rem', marginBottom: '-0.25rem' 
-          }}>
+          <div 
+            key={tab} 
+            onClick={() => setActiveTab(tab)}
+            style={{ 
+              fontSize: '0.875rem', fontWeight: activeTab === tab ? 600 : 400, 
+              color: activeTab === tab ? 'hsl(var(--accent-primary))' : 'hsl(var(--text-secondary))', 
+              cursor: 'pointer', 
+              borderBottom: activeTab === tab ? '2px solid hsl(var(--accent-primary))' : 'none', 
+              paddingBottom: '0.5rem', marginBottom: '-0.25rem' 
+            }}
+          >
             {tab}
           </div>
         ))}
       </div>
 
-      {/* Filters Toolbar */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'center' }}>
-        <div style={{ position: 'relative', flex: '1 1 200px', minWidth: '200px', maxWidth: '300px' }}>
-          <Search size={16} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'hsl(var(--text-muted))' }} />
-          <input 
-            type="text" 
-            placeholder="Search tasks..." 
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            style={{ width: '100%', padding: '0.5rem 1rem 0.5rem 2.25rem', borderRadius: '9999px', border: '1px solid hsl(var(--border-subtle))', outline: 'none', fontSize: '0.875rem', backgroundColor: 'white' }} 
-          />
-        </div>
-        
-        <select value={filterPriority} onChange={(e) => setFilterPriority(e.target.value)} className="filter-select">
-          <option value="All">All Priorities</option>
-          <option value="Low">Low</option>
-          <option value="Medium">Medium</option>
-          <option value="High">High</option>
-          <option value="Urgent">Urgent</option>
-        </select>
+      {activeTab === 'Board' && (
+        <>
+          {/* Filters Toolbar */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'center' }}>
+            <div style={{ position: 'relative', flex: '1 1 200px', minWidth: '200px', maxWidth: '300px' }}>
+              <Search size={16} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'hsl(var(--text-muted))' }} />
+              <input 
+                type="text" 
+                placeholder="Search tasks..." 
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                style={{ width: '100%', padding: '0.5rem 1rem 0.5rem 2.25rem', borderRadius: '9999px', border: '1px solid hsl(var(--border-subtle))', outline: 'none', fontSize: '0.875rem', backgroundColor: 'white' }} 
+              />
+            </div>
+            
+            <select value={filterPriority} onChange={(e) => setFilterPriority(e.target.value)} className="filter-select">
+              <option value="All">All Priorities</option>
+              <option value="Low">Low</option>
+              <option value="Medium">Medium</option>
+              <option value="High">High</option>
+              <option value="Urgent">Urgent</option>
+            </select>
 
-        <select value={filterAssignee} onChange={(e) => setFilterAssignee(e.target.value)} className="filter-select">
-          <option value="All">All Assignees</option>
-          <option value="Unassigned">Unassigned</option>
-          {project.members.map(m => (
-            <option key={m.id} value={m.id.toString()}>{m.name}</option>
-          ))}
-        </select>
+            <select value={filterAssignee} onChange={(e) => setFilterAssignee(e.target.value)} className="filter-select">
+              <option value="All">All Assignees</option>
+              <option value="Unassigned">Unassigned</option>
+              {project.members.map(m => (
+                <option key={m.id} value={m.id.toString()}>{m.name}</option>
+              ))}
+            </select>
 
-        <select value={filterDue} onChange={(e) => setFilterDue(e.target.value)} className="filter-select">
-          <option value="All">Any Due Date</option>
-          <option value="Today">Due Today</option>
-          <option value="This Week">Due This Week</option>
-          <option value="Overdue">Overdue</option>
-        </select>
-      </div>
+            <select value={filterDue} onChange={(e) => setFilterDue(e.target.value)} className="filter-select">
+              <option value="All">Any Due Date</option>
+              <option value="Today">Due Today</option>
+              <option value="This Week">Due This Week</option>
+              <option value="Overdue">Overdue</option>
+            </select>
+          </div>
 
       {tasks.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '5rem 1rem', backgroundColor: 'white', borderRadius: 'var(--radius-lg)', border: '1px dashed hsl(var(--border-subtle))' }}>
@@ -627,6 +667,62 @@ export default function ProjectBoardPage() {
           })}
         </div>
       )}
+      </>
+      )}
+
+      {activeTab === 'Members' && (
+        <div className="glass" style={{ backgroundColor: 'white', padding: '2rem', borderRadius: 'var(--radius-lg)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem' }}>
+            <div>
+              <h2 style={{ fontSize: '1.25rem', fontWeight: 600 }}>Project Members</h2>
+              <p style={{ fontSize: '0.875rem', color: 'hsl(var(--text-secondary))' }}>Manage who has access to this project.</p>
+            </div>
+          </div>
+          
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1rem' }}>
+            {project.members.map((member) => (
+              <div key={member.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem', border: '1px solid hsl(var(--border-subtle))', borderRadius: 'var(--radius-md)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                  <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: 'hsl(var(--bg-secondary))', color: 'hsl(var(--text-primary))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600 }}>
+                    {member.name.charAt(0).toUpperCase()}
+                  </div>
+                  <div>
+                    <div style={{ fontWeight: 500, fontSize: '0.95rem' }}>{member.name}</div>
+                    <div style={{ fontSize: '0.875rem', color: 'hsl(var(--text-secondary))' }}>{member.email}</div>
+                  </div>
+                </div>
+                <button className="btn btn-secondary" style={{ color: 'hsl(var(--danger))' }} onClick={() => removeMemberFromProject(member.id)}>
+                  Remove
+                </button>
+              </div>
+            ))}
+            
+            <div style={{ marginTop: '2rem' }}>
+              <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '1rem' }}>Add Workspace Members</h3>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '0.5rem' }}>
+                {members.filter(m => !project.members.find(pm => pm.id === m.id)).length === 0 ? (
+                  <p style={{ color: 'hsl(var(--text-muted))', fontSize: '0.875rem' }}>All workspace members are already in this project.</p>
+                ) : (
+                  members.filter(m => !project.members.find(pm => pm.id === m.id)).map(m => (
+                    <div key={m.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem', border: '1px solid hsl(var(--border-subtle))', borderRadius: 'var(--radius-md)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                        <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: 'hsl(var(--bg-secondary))', color: 'hsl(var(--text-primary))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600, fontSize: '0.75rem' }}>
+                          {m.name.charAt(0).toUpperCase()}
+                        </div>
+                        <span style={{ fontSize: '0.875rem', fontWeight: 500 }}>{m.name}</span>
+                      </div>
+                      <button className="btn btn-secondary" onClick={() => addMemberToProject(m.id)}>
+                        Add to Project
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
 
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm !== null && (
