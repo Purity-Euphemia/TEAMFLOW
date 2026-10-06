@@ -259,22 +259,31 @@ export default function SettingsPage() {
   ];
 
   return (
-    <div className="p-4 md:p-8 max-w-6xl mx-auto flex flex-col md:flex-row gap-8">
+    <div style={{ maxWidth: '1000px', margin: '0 auto', display: 'flex', gap: '2rem', padding: '2rem 1rem', flexWrap: 'wrap' }}>
+      
       {/* Sidebar */}
-      <div className="w-full md:w-64 shrink-0">
-        <h1 className="text-2xl font-bold text-gray-900 mb-6">Settings</h1>
-        <nav className="flex flex-col gap-2">
+      <div style={{ width: '250px', flexShrink: 0 }}>
+        <h1 style={{ fontSize: '1.75rem', marginBottom: '1.5rem' }}>Settings</h1>
+        <nav style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
           {tabs.map(tab => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
-                activeTab === tab.id
-                  ? 'bg-blue-50 text-blue-700'
-                  : 'text-gray-600 hover:bg-gray-100'
-              }`}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.75rem',
+                padding: '0.75rem 1rem',
+                borderRadius: 'var(--radius-md)',
+                fontSize: '0.875rem',
+                fontWeight: 500,
+                transition: 'all 0.2s',
+                backgroundColor: activeTab === tab.id ? 'hsl(var(--bg-tertiary))' : 'transparent',
+                color: activeTab === tab.id ? 'hsl(var(--accent-primary))' : 'hsl(var(--text-secondary))',
+                textAlign: 'left'
+              }}
             >
-              <tab.icon size={18} className={activeTab === tab.id ? 'text-blue-700' : 'text-gray-400'} />
+              <tab.icon size={18} style={{ color: activeTab === tab.id ? 'hsl(var(--accent-primary))' : 'hsl(var(--text-muted))' }} />
               {tab.label}
             </button>
           ))}
@@ -282,12 +291,21 @@ export default function SettingsPage() {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+      <div className="glass" style={{ flex: 1, minWidth: '300px', borderRadius: 'var(--radius-lg)', padding: '2rem' }}>
         
         {toast && (
-          <div className={`mb-6 p-4 rounded-lg text-sm flex items-center gap-2 ${
-            toast.type === 'success' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'
-          }`}>
+          <div style={{
+            marginBottom: '1.5rem',
+            padding: '1rem',
+            borderRadius: 'var(--radius-md)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            fontSize: '0.875rem',
+            backgroundColor: toast.type === 'success' ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+            color: toast.type === 'success' ? 'hsl(var(--success))' : 'hsl(var(--danger))',
+            border: `1px solid ${toast.type === 'success' ? 'rgba(34, 197, 94, 0.2)' : 'rgba(239, 68, 68, 0.2)'}`
+          }}>
             {toast.type === 'success' ? <Save size={16} /> : <AlertTriangle size={16} />}
             {toast.message}
           </div>
@@ -295,37 +313,55 @@ export default function SettingsPage() {
 
         {/* PROFILE TAB */}
         {activeTab === 'profile' && (
-          <div className="space-y-6">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
             <div>
-              <h2 className="text-lg font-semibold text-gray-900">Profile Settings</h2>
-              <p className="text-sm text-gray-500">Manage your personal information.</p>
+              <h2 style={{ fontSize: '1.25rem', marginBottom: '0.25rem' }}>Profile Settings</h2>
+              <p style={{ fontSize: '0.875rem', color: 'hsl(var(--text-secondary))' }}>Manage your personal information.</p>
             </div>
             
-            <form onSubmit={handleProfileSubmit} className="space-y-5 max-w-md">
+            <form onSubmit={handleProfileSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', maxWidth: '400px' }}>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, marginBottom: '0.5rem' }}>Full Name</label>
                 <input
                   type="text"
                   required
                   value={profileData.full_name}
                   onChange={e => setProfileData({...profileData, full_name: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem 1rem',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid hsl(var(--border-subtle))',
+                    backgroundColor: 'hsl(var(--bg-secondary))',
+                    color: 'hsl(var(--text-primary))',
+                    fontSize: '0.875rem'
+                  }}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
+                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, marginBottom: '0.5rem' }}>Email Address</label>
                 <input
                   type="email"
                   disabled
                   value={user?.email || ''}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-500 cursor-not-allowed outline-none"
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem 1rem',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid hsl(var(--border-subtle))',
+                    backgroundColor: 'hsl(var(--bg-tertiary))',
+                    color: 'hsl(var(--text-muted))',
+                    fontSize: '0.875rem',
+                    cursor: 'not-allowed'
+                  }}
                 />
-                <p className="text-xs text-gray-500 mt-1">Email cannot be changed directly.</p>
+                <p style={{ fontSize: '0.75rem', color: 'hsl(var(--text-muted))', marginTop: '0.5rem' }}>Email cannot be changed directly.</p>
               </div>
               <button
                 type="submit"
                 disabled={loading}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium disabled:opacity-50"
+                className="btn btn-primary"
+                style={{ alignSelf: 'flex-start', marginTop: '0.5rem' }}
               >
                 {loading ? 'Saving...' : 'Save Changes'}
               </button>
@@ -335,63 +371,89 @@ export default function SettingsPage() {
 
         {/* SECURITY TAB */}
         {activeTab === 'security' && (
-          <div className="space-y-8">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
             <div>
-              <h2 className="text-lg font-semibold text-gray-900">Account & Security</h2>
-              <p className="text-sm text-gray-500">Manage your password and sessions.</p>
+              <h2 style={{ fontSize: '1.25rem', marginBottom: '0.25rem' }}>Account & Security</h2>
+              <p style={{ fontSize: '0.875rem', color: 'hsl(var(--text-secondary))' }}>Manage your password and sessions.</p>
             </div>
             
-            <form onSubmit={handlePasswordSubmit} className="space-y-5 max-w-md">
-              <h3 className="text-md font-medium text-gray-800 border-b pb-2">Change Password</h3>
+            <form onSubmit={handlePasswordSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', maxWidth: '400px' }}>
+              <h3 style={{ fontSize: '1rem', fontWeight: 600, borderBottom: '1px solid hsl(var(--border-subtle))', paddingBottom: '0.5rem' }}>Change Password</h3>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Current Password</label>
+                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, marginBottom: '0.5rem' }}>Current Password</label>
                 <input
                   type="password"
                   required
                   value={passwordData.current_password}
                   onChange={e => setPasswordData({...passwordData, current_password: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem 1rem',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid hsl(var(--border-subtle))',
+                    backgroundColor: 'hsl(var(--bg-secondary))',
+                    color: 'hsl(var(--text-primary))',
+                    fontSize: '0.875rem'
+                  }}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">New Password</label>
+                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, marginBottom: '0.5rem' }}>New Password</label>
                 <input
                   type="password"
                   required
                   value={passwordData.new_password}
                   onChange={e => setPasswordData({...passwordData, new_password: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem 1rem',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid hsl(var(--border-subtle))',
+                    backgroundColor: 'hsl(var(--bg-secondary))',
+                    color: 'hsl(var(--text-primary))',
+                    fontSize: '0.875rem'
+                  }}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Confirm New Password</label>
+                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, marginBottom: '0.5rem' }}>Confirm New Password</label>
                 <input
                   type="password"
                   required
                   value={passwordData.confirm_password}
                   onChange={e => setPasswordData({...passwordData, confirm_password: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem 1rem',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid hsl(var(--border-subtle))',
+                    backgroundColor: 'hsl(var(--bg-secondary))',
+                    color: 'hsl(var(--text-primary))',
+                    fontSize: '0.875rem'
+                  }}
                 />
               </div>
               <button
                 type="submit"
                 disabled={loading}
-                className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 font-medium disabled:opacity-50"
+                className="btn btn-secondary"
+                style={{ alignSelf: 'flex-start', marginTop: '0.5rem' }}
               >
                 {loading ? 'Updating...' : 'Change Password'}
               </button>
             </form>
 
-            <div className="pt-6">
-              <h3 className="text-md font-medium text-gray-800 border-b pb-2 mb-4">Active Session</h3>
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 bg-gray-50 border border-gray-200 rounded-lg gap-4">
+            <div style={{ marginTop: '2rem' }}>
+              <h3 style={{ fontSize: '1rem', fontWeight: 600, borderBottom: '1px solid hsl(var(--border-subtle))', paddingBottom: '0.5rem', marginBottom: '1rem' }}>Active Session</h3>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem', backgroundColor: 'hsl(var(--bg-tertiary))', borderRadius: 'var(--radius-md)', border: '1px solid hsl(var(--border-subtle))' }}>
                 <div>
-                  <p className="font-medium text-gray-900">Current browser</p>
-                  <p className="text-sm text-green-600">Status: Active</p>
+                  <p style={{ fontWeight: 500, fontSize: '0.875rem' }}>Current browser</p>
+                  <p style={{ fontSize: '0.75rem', color: 'hsl(var(--success))' }}>Status: Active</p>
                 </div>
                 <button 
                   onClick={handleLogout}
-                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-700 hover:text-gray-900 border border-gray-300 rounded-md hover:bg-gray-100 transition-colors"
+                  className="btn btn-secondary"
+                  style={{ padding: '0.5rem 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem' }}
                 >
                   <LogOut size={16} /> Log Out
                 </button>
@@ -402,34 +464,43 @@ export default function SettingsPage() {
 
         {/* WORKSPACE TAB */}
         {activeTab === 'workspace' && (
-          <div className="space-y-6">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
             <div>
-              <h2 className="text-lg font-semibold text-gray-900">Workspace Settings</h2>
-              <p className="text-sm text-gray-500">Manage your active workspace information.</p>
+              <h2 style={{ fontSize: '1.25rem', marginBottom: '0.25rem' }}>Workspace Settings</h2>
+              <p style={{ fontSize: '0.875rem', color: 'hsl(var(--text-secondary))' }}>Manage your active workspace information.</p>
             </div>
             
-            <form onSubmit={handleWorkspaceSubmit} className="space-y-5 max-w-md">
+            <form onSubmit={handleWorkspaceSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', maxWidth: '400px' }}>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Workspace Name</label>
+                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, marginBottom: '0.5rem' }}>Workspace Name</label>
                 <input
                   type="text"
                   required
                   disabled={workspaceData.role === 'member'}
                   value={workspaceData.name}
                   onChange={e => setWorkspaceData({...workspaceData, name: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none disabled:bg-gray-50 disabled:text-gray-500"
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem 1rem',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid hsl(var(--border-subtle))',
+                    backgroundColor: workspaceData.role === 'member' ? 'hsl(var(--bg-tertiary))' : 'hsl(var(--bg-secondary))',
+                    color: workspaceData.role === 'member' ? 'hsl(var(--text-muted))' : 'hsl(var(--text-primary))',
+                    fontSize: '0.875rem'
+                  }}
                 />
               </div>
               {['owner', 'admin'].includes(workspaceData.role) ? (
                 <button
                   type="submit"
                   disabled={loading}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium disabled:opacity-50"
+                  className="btn btn-primary"
+                  style={{ alignSelf: 'flex-start' }}
                 >
                   {loading ? 'Saving...' : 'Save Workspace'}
                 </button>
               ) : (
-                <p className="text-sm text-orange-600 bg-orange-50 p-3 rounded-lg border border-orange-200">
+                <p style={{ fontSize: '0.875rem', color: 'hsl(var(--warning))', backgroundColor: 'hsla(var(--warning), 0.1)', padding: '1rem', borderRadius: 'var(--radius-md)', border: '1px solid hsla(var(--warning), 0.2)' }}>
                   Only the Workspace Owner or Admins can edit these settings.
                 </p>
               )}
@@ -439,26 +510,43 @@ export default function SettingsPage() {
 
         {/* NOTIFICATIONS TAB */}
         {activeTab === 'notifications' && (
-          <div className="space-y-6">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
             <div>
-              <h2 className="text-lg font-semibold text-gray-900">Notification Preferences</h2>
-              <p className="text-sm text-gray-500">Choose what you want to be notified about.</p>
+              <h2 style={{ fontSize: '1.25rem', marginBottom: '0.25rem' }}>Notification Preferences</h2>
+              <p style={{ fontSize: '0.875rem', color: 'hsl(var(--text-secondary))' }}>Choose what you want to be notified about.</p>
             </div>
             
-            <div className="space-y-4 max-w-lg">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', maxWidth: '500px' }}>
               {Object.entries(notifications).map(([key, value]) => (
-                <div key={key} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
-                  <div>
-                    <p className="font-medium text-gray-800 capitalize">{key.replace(/_/g, ' ')}</p>
-                  </div>
-                  <label className="relative inline-flex items-center cursor-pointer">
+                <div key={key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '1rem', borderBottom: '1px solid hsl(var(--border-subtle))' }}>
+                  <p style={{ fontWeight: 500, fontSize: '0.875rem', textTransform: 'capitalize' }}>{key.replace(/_/g, ' ')}</p>
+                  <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', position: 'relative' }}>
                     <input 
                       type="checkbox" 
-                      className="sr-only peer" 
+                      style={{ opacity: 0, position: 'absolute', zIndex: -1 }}
                       checked={value as boolean}
                       onChange={(e) => handleNotificationToggle(key, e.target.checked)}
                     />
-                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                    <div style={{
+                      width: '44px',
+                      height: '24px',
+                      backgroundColor: value ? 'hsl(var(--accent-primary))' : 'hsl(var(--border-subtle))',
+                      borderRadius: '999px',
+                      position: 'relative',
+                      transition: 'background-color 0.2s'
+                    }}>
+                      <div style={{
+                        width: '20px',
+                        height: '20px',
+                        backgroundColor: 'white',
+                        borderRadius: '50%',
+                        position: 'absolute',
+                        top: '2px',
+                        left: value ? '22px' : '2px',
+                        transition: 'left 0.2s',
+                        boxShadow: 'var(--shadow-sm)'
+                      }}></div>
+                    </div>
                   </label>
                 </div>
               ))}
@@ -468,26 +556,26 @@ export default function SettingsPage() {
 
         {/* APPEARANCE TAB */}
         {activeTab === 'appearance' && (
-          <div className="space-y-6">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
             <div>
-              <h2 className="text-lg font-semibold text-gray-900">Appearance</h2>
-              <p className="text-sm text-gray-500">Customize how TeamFlow looks on your device.</p>
+              <h2 style={{ fontSize: '1.25rem', marginBottom: '0.25rem' }}>Appearance</h2>
+              <p style={{ fontSize: '0.875rem', color: 'hsl(var(--text-secondary))' }}>Customize how TeamFlow looks on your device.</p>
             </div>
             
-            <div className="space-y-4">
-              <h3 className="text-sm font-medium text-gray-700">Theme</h3>
-              <div className="flex gap-4">
+            <div>
+              <h3 style={{ fontSize: '0.875rem', fontWeight: 600, marginBottom: '1rem' }}>Theme</h3>
+              <div style={{ display: 'flex', gap: '1.5rem' }}>
                 {['light', 'dark', 'system'].map(t => (
-                  <label key={t} className="flex items-center gap-2 cursor-pointer">
+                  <label key={t} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.875rem', textTransform: 'capitalize' }}>
                     <input 
                       type="radio" 
                       name="theme" 
                       value={t} 
                       checked={theme === t}
                       onChange={() => handleThemeChange(t)}
-                      className="text-blue-600 focus:ring-blue-500 h-4 w-4"
+                      style={{ accentColor: 'hsl(var(--accent-primary))', width: '16px', height: '16px' }}
                     />
-                    <span className="capitalize text-gray-800">{t}</span>
+                    <span>{t}</span>
                   </label>
                 ))}
               </div>
@@ -497,34 +585,52 @@ export default function SettingsPage() {
 
         {/* DANGER ZONE TAB */}
         {activeTab === 'danger' && (
-          <div className="space-y-8">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
             <div>
-              <h2 className="text-lg font-semibold text-red-600 flex items-center gap-2">
+              <h2 style={{ fontSize: '1.25rem', marginBottom: '0.25rem', color: 'hsl(var(--danger))', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <AlertTriangle size={20} />
                 Danger Zone
               </h2>
-              <p className="text-sm text-gray-500 mt-1">Destructive actions for your account and workspace.</p>
+              <p style={{ fontSize: '0.875rem', color: 'hsl(var(--text-secondary))' }}>Destructive actions for your account and workspace.</p>
             </div>
             
             {workspaceData.role === 'owner' && (
-              <div className="border border-red-200 rounded-lg p-5 bg-red-50">
-                <h3 className="font-semibold text-red-800 mb-1">Delete Workspace</h3>
-                <p className="text-sm text-red-600 mb-4">
+              <div style={{ padding: '1.5rem', borderRadius: 'var(--radius-lg)', border: '1px solid hsla(var(--danger), 0.3)', backgroundColor: 'hsla(var(--danger), 0.05)' }}>
+                <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'hsl(var(--danger))', marginBottom: '0.5rem' }}>Delete Workspace</h3>
+                <p style={{ fontSize: '0.875rem', color: 'hsl(var(--text-secondary))', marginBottom: '1.5rem' }}>
                   Permanently delete this workspace and all its data (projects, tasks, members). This action cannot be undone.
                 </p>
-                <div className="space-y-3 max-w-sm">
-                  <label className="block text-sm text-red-700">Type <strong>{workspaceData.name}</strong> to confirm</label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', maxWidth: '350px' }}>
+                  <label style={{ fontSize: '0.875rem' }}>Type <strong style={{ color: 'hsl(var(--text-primary))' }}>{workspaceData.name}</strong> to confirm</label>
                   <input
                     type="text"
                     value={workspaceConfirm}
                     onChange={e => setWorkspaceConfirm(e.target.value)}
                     placeholder="Workspace Name"
-                    className="w-full px-3 py-2 border border-red-300 rounded-lg outline-none focus:ring-1 focus:ring-red-500"
+                    style={{
+                      width: '100%',
+                      padding: '0.75rem 1rem',
+                      borderRadius: 'var(--radius-md)',
+                      border: '1px solid hsla(var(--danger), 0.3)',
+                      backgroundColor: 'hsl(var(--bg-secondary))',
+                      color: 'hsl(var(--text-primary))',
+                      fontSize: '0.875rem'
+                    }}
                   />
                   <button 
                     onClick={handleDeleteWorkspace}
                     disabled={workspaceConfirm !== workspaceData.name || loading}
-                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium disabled:opacity-50"
+                    style={{
+                      padding: '0.75rem 1.5rem',
+                      borderRadius: 'var(--radius-md)',
+                      backgroundColor: 'hsl(var(--danger))',
+                      color: 'white',
+                      fontWeight: 500,
+                      border: 'none',
+                      cursor: workspaceConfirm !== workspaceData.name || loading ? 'not-allowed' : 'pointer',
+                      opacity: workspaceConfirm !== workspaceData.name || loading ? 0.5 : 1,
+                      alignSelf: 'flex-start'
+                    }}
                   >
                     Delete Workspace
                   </button>
@@ -532,15 +638,25 @@ export default function SettingsPage() {
               </div>
             )}
 
-            <div className="border border-red-200 rounded-lg p-5 bg-red-50">
-              <h3 className="font-semibold text-red-800 mb-1">Delete Account</h3>
-              <p className="text-sm text-red-600 mb-4">
+            <div style={{ padding: '1.5rem', borderRadius: 'var(--radius-lg)', border: '1px solid hsla(var(--danger), 0.3)', backgroundColor: 'hsla(var(--danger), 0.05)' }}>
+              <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'hsl(var(--danger))', marginBottom: '0.5rem' }}>Delete Account</h3>
+              <p style={{ fontSize: '0.875rem', color: 'hsl(var(--text-secondary))', marginBottom: '1.5rem' }}>
                 Permanently delete your user account. This action cannot be undone. If you are a workspace owner, you must delete or transfer your workspaces first.
               </p>
               <button 
                 onClick={handleDeleteAccount}
                 disabled={loading}
-                className="px-4 py-2 bg-white text-red-600 border border-red-300 rounded-lg hover:bg-red-50 font-medium disabled:opacity-50 transition-colors"
+                style={{
+                  padding: '0.75rem 1.5rem',
+                  borderRadius: 'var(--radius-md)',
+                  backgroundColor: 'transparent',
+                  color: 'hsl(var(--danger))',
+                  border: '1px solid hsl(var(--danger))',
+                  fontWeight: 500,
+                  cursor: loading ? 'not-allowed' : 'pointer',
+                  opacity: loading ? 0.5 : 1,
+                  alignSelf: 'flex-start'
+                }}
               >
                 Delete Account
               </button>
