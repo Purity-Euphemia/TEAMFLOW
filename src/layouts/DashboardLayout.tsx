@@ -10,7 +10,8 @@ import {
   Search, 
   LogOut,
   User as UserIcon,
-  ChevronDown
+  ChevronDown,
+  Activity
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useNotifications } from '../context/NotificationsContext';
@@ -55,6 +56,7 @@ export default function DashboardLayout() {
     { name: 'My Tasks', path: '/tasks', icon: CheckSquare },
     { name: 'Projects', path: '/projects', icon: FolderKanban },
     { name: 'Team', path: '/team', icon: Users },
+    { name: 'Activity', path: '/activity', icon: Activity },
     { name: 'Notifications', path: '/notifications', icon: Bell },
     { name: 'Settings', path: '/settings', icon: Settings },
   ];

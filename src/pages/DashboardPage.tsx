@@ -4,7 +4,9 @@ import {
   Plus, UserPlus, LayoutDashboard, CheckCircle2, AlertCircle, Clock, 
   Folder, Calendar, ChevronRight, Activity, Bell, Users, X
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { ActivityMessage, formatRelativeTime } from '../components/ActivityItem';
+import type { ActivityRecord } from '../components/ActivityItem';
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -372,20 +374,23 @@ export default function DashboardPage() {
           </section>
 
           <section className="glass" style={{ padding: '1.5rem', borderRadius: 'var(--radius-lg)' }}>
-            <h2 style={{ fontSize: '1.125rem', marginBottom: '1.25rem' }}>Recent Activity</h2>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+              <h2 style={{ fontSize: '1.125rem' }}>Recent Activity</h2>
+              <Link to="/activity" style={{ fontSize: '0.875rem', color: 'hsl(var(--accent-primary))', fontWeight: 500 }}>
+                View all activity &rarr;
+              </Link>
+            </div>
             {recent_activity?.length > 0 ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                {recent_activity.map((act: any) => (
+                {recent_activity.map((act: ActivityRecord) => (
                   <div key={act.id} style={{ display: 'flex', gap: '1rem' }}>
-                    <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: 'hsl(var(--accent-primary))', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: 600, flexShrink: 0 }}>
-                      {act.user_name.charAt(0).toUpperCase()}
+                    <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: 'hsl(var(--bg-secondary))', color: 'hsl(var(--text-primary))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: 600, flexShrink: 0 }}>
+                      {act.actor.name.charAt(0).toUpperCase()}
                     </div>
                     <div>
-                      <div style={{ fontSize: '0.875rem', color: 'hsl(var(--text-secondary))' }}>
-                        <span style={{ fontWeight: 600, color: 'hsl(var(--text-primary))' }}>{act.user_name}</span> {act.action} <span style={{ fontWeight: 500, color: 'hsl(var(--text-primary))' }}>{act.target_name}</span>
-                      </div>
+                      <ActivityMessage act={act} />
                       <div style={{ fontSize: '0.75rem', color: 'hsl(var(--text-muted))', marginTop: '0.125rem' }}>
-                        {new Date(act.created_at).toLocaleString()}
+                        {formatRelativeTime(act.created_at)}
                       </div>
                     </div>
                   </div>

@@ -79,9 +79,13 @@ class Comment(db.Model):
 class Activity(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     workspace_id = db.Column(db.Integer, db.ForeignKey('workspace.id'), nullable=False)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    action = db.Column(db.String(255), nullable=False)
-    target_name = db.Column(db.String(255), nullable=True)
+    actor_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    action_type = db.Column(db.String(50), nullable=False)
+    entity_type = db.Column(db.String(50), nullable=False)
+    entity_id = db.Column(db.Integer, nullable=True)
+    project_id = db.Column(db.Integer, db.ForeignKey('project.id'), nullable=True)
+    task_id = db.Column(db.Integer, db.ForeignKey('task.id'), nullable=True)
+    metadata_json = db.Column(db.Text, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 class Notification(db.Model):
@@ -141,8 +145,19 @@ def get_current_workspace(user_id, requested_workspace_id=None):
     role = next(m.role for m in memberships if m.workspace_id == ws.id)
     return ws, role
 
-def log_activity(workspace_id, user_id, action, target_name):
-    activity = Activity(workspace_id=workspace_id, user_id=user_id, action=action, target_name=target_name)
+import json
+
+def create_activity(workspace_id, actor_id, action_type, entity_type, entity_id=None, project_id=None, task_id=None, metadata=None):
+    activity = Activity(
+        workspace_id=workspace_id,
+        actor_id=actor_id,
+        action_type=action_type,
+        entity_type=entity_type,
+        entity_id=entity_id,
+        project_id=project_id,
+        task_id=task_id,
+        metadata_json=json.dumps(metadata) if metadata else None
+    )
     db.session.add(activity)
 
 def create_notification(recipient_id, notif_type, message, workspace_id=None, actor_id=None, task_id=None, project_id=None, comment_id=None, title=None):
@@ -258,7 +273,7 @@ def create_workspace():
     db.session.add(member)
     db.session.commit()
     
-    log_activity(workspace.id, user.id, 'created workspace', name)
+    create_activity(workspace.id, user.id, 'WORKSPACE_CREATED', 'workspace', workspace.id)
     db.session.commit()
     
     return jsonify({"id": workspace.id, "name": workspace.name}), 201
@@ -350,7 +365,7 @@ def handle_invitations(workspace_id):
             expires_at=expires_at
         )
         db.session.add(invite)
-        log_activity(workspace.id, user.id, f'invited {email} as {invite_role}', None)
+        create_activity(workspace.id, user.id, 'MEMBER_INVITED', 'workspace_member', metadata={'email': email, 'role': invite_role})
         
         if existing_user:
             create_notification(existing_user.id, 'WORKSPACE_INVITATION', f"You were invited to join {workspace.name}", workspace.id, user.id, title="Workspace Invitation")
@@ -400,7 +415,7 @@ def cancel_invitation(workspace_id, invite_id):
     if invite.workspace_id != workspace.id: return jsonify({"error": "Forbidden"}), 403
     
     invite.status = 'canceled'
-    log_activity(workspace.id, user.id, f'canceled invitation for {invite.email}', None)
+    create_activity(workspace.id, user.id, 'MEMBER_INVITE_CANCELED', 'workspace_member', metadata={'email': invite.email})
     db.session.commit()
     return jsonify({"message": "Invitation canceled"})
 
@@ -426,7 +441,7 @@ def accept_invitation(token):
         db.session.add(member)
         
     invite.status = 'accepted'
-    log_activity(invite.workspace_id, user.id, 'joined the workspace via invitation', None)
+    create_activity(invite.workspace_id, user.id, 'MEMBER_JOINED', 'workspace_member')
     db.session.commit()
     
     return jsonify({"message": "Invitation accepted", "workspace_id": invite.workspace_id})
@@ -454,7 +469,7 @@ def manage_member(workspace_id, member_user_id):
         if target_member.role == 'owner': return jsonify({"error": "Cannot change the role of an owner"}), 403
         
         target_member.role = new_role
-        log_activity(workspace.id, user.id, f"changed {target_user.full_name}'s role to {new_role}", None)
+        create_activity(workspace.id, user.id, 'ROLE_CHANGED', 'workspace_member', target_user.id, metadata={'target_name': target_user.full_name, 'new_role': new_role})
         create_notification(target_user.id, 'ROLE_CHANGED', f"Your {workspace.name} workspace role was changed to {new_role}.", workspace.id, user.id, title="Role Changed")
         db.session.commit()
         return jsonify({"message": "Role updated"})
@@ -466,7 +481,7 @@ def manage_member(workspace_id, member_user_id):
             return jsonify({"error": "Cannot remove yourself. Use leave workspace."}), 400
             
         db.session.delete(target_member)
-        log_activity(workspace.id, user.id, f"removed {target_user.full_name} from workspace", None)
+        create_activity(workspace.id, user.id, 'MEMBER_REMOVED', 'workspace_member', target_user.id, metadata={'target_name': target_user.full_name})
         db.session.commit()
         return jsonify({"message": "Member removed"})
 
@@ -540,13 +555,29 @@ def get_dashboard():
     activities = Activity.query.filter_by(workspace_id=workspace.id).order_by(Activity.created_at.desc()).limit(10).all()
     activities_data = []
     for a in activities:
-        actor = User.query.get(a.user_id)
+        actor = User.query.get(a.actor_id)
+        
+        md = None
+        if a.metadata_json:
+            import json
+            try:
+                md = json.loads(a.metadata_json)
+            except:
+                pass
+                
         activities_data.append({
             "id": a.id,
-            "user_name": actor.full_name if actor else "Unknown",
-            "action": a.action,
-            "target_name": a.target_name,
-            "created_at": a.created_at.isoformat()
+            "actor": {
+                "id": actor.id if actor else None,
+                "name": actor.full_name if actor else "Unknown"
+            },
+            "action_type": a.action_type,
+            "entity_type": a.entity_type,
+            "entity_id": a.entity_id,
+            "project_id": a.project_id,
+            "task_id": a.task_id,
+            "metadata": md,
+            "created_at": a.created_at.isoformat() + 'Z'
         })
         
     # Notifications (global for user)
@@ -686,7 +717,7 @@ def create_project():
                 
     db.session.commit()
     
-    log_activity(workspace.id, user.id, 'created a new project', name)
+    create_activity(workspace.id, user.id, 'PROJECT_CREATED', 'project', project.id, project.id, metadata={'name': name})
     db.session.commit()
     
     return jsonify({"id": project.id, "name": project.name}), 201
@@ -762,7 +793,7 @@ def update_project(project_id):
                 db.session.add(ProjectMember(project_id=project.id, user_id=m_id))
                 
     db.session.commit()
-    log_activity(workspace.id, user.id, 'updated project', project.name)
+    create_activity(workspace.id, user.id, 'PROJECT_UPDATED', 'project', project.id, project.id, metadata={'name': project.name})
     db.session.commit()
     
     return jsonify({"message": "Project updated"}), 200
@@ -779,7 +810,7 @@ def archive_project(project_id):
     project.status = 'Archived'
     db.session.commit()
     
-    log_activity(workspace.id, user.id, 'archived project', project.name)
+    create_activity(workspace.id, user.id, 'PROJECT_ARCHIVED', 'project', project.id, project.id, metadata={'name': project.name})
     db.session.commit()
     
     return jsonify({"message": "Project archived"}), 200
@@ -878,7 +909,7 @@ def create_task():
     db.session.add(task)
     db.session.commit()
     
-    log_activity(workspace.id, user.id, 'created a task', title)
+    create_activity(workspace.id, user.id, 'TASK_CREATED', 'task', task.id, project_id, task.id, metadata={'title': title})
     
     if assignee_id and assignee_id != user.id:
         create_notification(assignee_id, 'TASK_ASSIGNED', f"{user.full_name} assigned you a task: {task.title}", workspace.id, user.id, task.id, project_id, title="Task Assigned")
@@ -933,7 +964,7 @@ def update_task(task_id):
             task.assignee_id = assignee_id
             
     db.session.commit()
-    log_activity(workspace.id, user.id, 'updated a task', task.title)
+    create_activity(workspace.id, user.id, 'TASK_UPDATED', 'task', task.id, task.project_id, task.id, metadata={'title': task.title})
     
     if 'assignee_id' in data and task.assignee_id and task.assignee_id != old_assignee_id and task.assignee_id != user.id:
         create_notification(task.assignee_id, 'TASK_ASSIGNED', f"{user.full_name} assigned you a task: {task.title}", workspace.id, user.id, task.id, task.project_id, title="Task Assigned")
@@ -960,7 +991,7 @@ def delete_task(task_id):
         
     Comment.query.filter_by(task_id=task.id).delete()
     db.session.delete(task)
-    log_activity(workspace.id, user.id, 'deleted a task', task.title)
+    create_activity(workspace.id, user.id, 'TASK_DELETED', 'task', None, task.project_id, None, metadata={'title': task.title})
     db.session.commit()
     
     return jsonify({"message": "Task deleted"})
@@ -975,7 +1006,7 @@ def complete_task(task_id):
     if not workspace: return jsonify({"error": "Forbidden"}), 403
     
     task.status = 'Done'
-    log_activity(workspace.id, user.id, 'completed a task', task.title)
+    create_activity(workspace.id, user.id, 'TASK_COMPLETED', 'task', task.id, task.project_id, task.id, metadata={'title': task.title})
     
     if task.assignee_id and task.assignee_id != user.id:
         create_notification(task.assignee_id, 'TASK_COMPLETED', f"{user.full_name} completed your task: {task.title}", workspace.id, user.id, task.id, task.project_id, title="Task Completed")
@@ -1001,7 +1032,7 @@ def update_task_status(task_id):
     old_status = task.status
     task.status = status
     db.session.commit()
-    log_activity(workspace.id, user.id, f'moved task to {status}', task.title)
+    create_activity(workspace.id, user.id, 'TASK_STATUS_CHANGED', 'task', task.id, task.project_id, task.id, metadata={'title': task.title, 'old_status': old_status, 'new_status': status})
     
     if task.status != old_status and task.assignee_id and task.assignee_id != user.id:
         create_notification(task.assignee_id, 'TASK_STATUS_CHANGED', f"{user.full_name} moved your task to {task.status}", workspace.id, user.id, task.id, task.project_id, title="Task Status Changed")
@@ -1075,7 +1106,7 @@ def create_comment(task_id):
     db.session.add(comment)
     db.session.commit()
     
-    log_activity(workspace.id, user.id, 'commented on task', task.title)
+    create_activity(workspace.id, user.id, 'COMMENT_CREATED', 'comment', comment.id, task.project_id, task.id, metadata={'task_title': task.title})
     
     if task.assignee_id and task.assignee_id != user.id:
         create_notification(task.assignee_id, 'TASK_COMMENTED', f"{user.full_name} commented on your task: {task.title}", workspace.id, user.id, task.id, task.project_id, comment.id, title="New Comment")
@@ -1211,6 +1242,67 @@ def mark_all_notifications_read():
     db.session.commit()
     
     return jsonify({"message": "All notifications marked as read"}), 200
+
+# ==========================================
+# ACTIVITY FEED
+# ==========================================
+
+@app.route('/api/activity', methods=['GET'])
+def get_activity():
+    user = require_auth()
+    if not user: return jsonify({"error": "Unauthorized"}), 401
+    
+    workspace_id = request.args.get('workspace_id', type=int)
+    if not workspace_id:
+        workspace, _ = get_current_workspace(user.id)
+        if not workspace: return jsonify({"error": "Forbidden"}), 403
+        workspace_id = workspace.id
+    else:
+        workspace, _ = get_current_workspace(user.id, workspace_id)
+        if not workspace: return jsonify({"error": "Forbidden"}), 403
+        
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('limit', 20, type=int)
+    
+    pagination = Activity.query.filter_by(workspace_id=workspace_id).order_by(Activity.created_at.desc()).paginate(page=page, per_page=per_page, error_out=False)
+    
+    activities_data = []
+    
+    for a in pagination.items:
+        actor = User.query.get(a.actor_id)
+        
+        md = None
+        if a.metadata_json:
+            import json
+            try:
+                md = json.loads(a.metadata_json)
+            except:
+                pass
+                
+        activities_data.append({
+            "id": a.id,
+            "actor": {
+                "id": actor.id if actor else None,
+                "name": actor.full_name if actor else "Unknown"
+            },
+            "action_type": a.action_type,
+            "entity_type": a.entity_type,
+            "entity_id": a.entity_id,
+            "project_id": a.project_id,
+            "task_id": a.task_id,
+            "metadata": md,
+            "created_at": a.created_at.isoformat() + 'Z'
+        })
+        
+    return jsonify({
+        "activities": activities_data,
+        "pagination": {
+            "page": pagination.page,
+            "limit": pagination.per_page,
+            "total": pagination.total,
+            "has_more": pagination.has_next
+        }
+    }), 200
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
