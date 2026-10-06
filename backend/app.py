@@ -973,7 +973,11 @@ def get_task_comments(task_id):
     workspace, _ = get_current_workspace(user.id, task.workspace_id)
     if not workspace: return jsonify({"error": "Forbidden"}), 403
     
-    comments = Comment.query.filter_by(task_id=task.id).order_by(Comment.created_at.desc()).all()
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 20, type=int)
+    
+    pagination = Comment.query.filter_by(task_id=task.id).order_by(Comment.created_at.desc()).paginate(page=page, per_page=per_page, error_out=False)
+    comments = pagination.items
     
     # Enrich with author details
     comment_data = []
@@ -983,13 +987,17 @@ def get_task_comments(task_id):
             "id": c.id,
             "task_id": c.task_id,
             "author_id": c.author_id,
-            "author_name": author.name if author else 'Unknown User',
+            "author_name": author.full_name if author else 'Unknown User',
             "content": c.content,
             "created_at": c.created_at.isoformat() + 'Z',
             "updated_at": c.updated_at.isoformat() + 'Z'
         })
         
-    return jsonify({"comments": comment_data}), 200
+    return jsonify({
+        "comments": comment_data,
+        "has_more": pagination.has_next,
+        "total": pagination.total
+    }), 200
 
 @app.route('/api/tasks/<int:task_id>/comments', methods=['POST'])
 def create_comment(task_id):
@@ -1024,7 +1032,7 @@ def create_comment(task_id):
         "id": comment.id,
         "task_id": comment.task_id,
         "author_id": comment.author_id,
-        "author_name": user.name,
+        "author_name": user.full_name,
         "content": comment.content,
         "created_at": comment.created_at.isoformat() + 'Z',
         "updated_at": comment.updated_at.isoformat() + 'Z'

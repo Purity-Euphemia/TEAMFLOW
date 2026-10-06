@@ -27,20 +27,34 @@ const TaskComments: React.FC<TaskCommentsProps> = ({ taskId }) => {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editContent, setEditContent] = useState('');
 
+  const [total, setTotal] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const [page, setPage] = useState(1);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+
   useEffect(() => {
-    fetchComments();
+    fetchComments(1);
   }, [taskId]);
 
-  const fetchComments = async () => {
+  const fetchComments = async (pageNumber: number) => {
     try {
-      setLoading(true);
+      if (pageNumber === 1) setLoading(true);
+      else setIsLoadingMore(true);
+      
       setError(null);
-      const res = await fetch(`http://localhost:5000/api/tasks/${taskId}/comments`, {
+      const res = await fetch(`http://localhost:5000/api/tasks/${taskId}/comments?page=${pageNumber}&per_page=20`, {
         credentials: 'include'
       });
       if (res.ok) {
         const data = await res.json();
-        setComments(data.comments || []);
+        if (pageNumber === 1) {
+          setComments(data.comments || []);
+        } else {
+          setComments([...comments, ...(data.comments || [])]);
+        }
+        setTotal(data.total || 0);
+        setHasMore(data.has_more || false);
+        setPage(pageNumber);
       } else {
         setError('Unable to load comments.');
       }
@@ -48,6 +62,7 @@ const TaskComments: React.FC<TaskCommentsProps> = ({ taskId }) => {
       setError('Unable to load comments.');
     } finally {
       setLoading(false);
+      setIsLoadingMore(false);
     }
   };
 
@@ -68,6 +83,7 @@ const TaskComments: React.FC<TaskCommentsProps> = ({ taskId }) => {
       if (res.ok) {
         const data = await res.json();
         setComments([data, ...comments]); // Prepend new comment
+        setTotal(total + 1);
         setNewComment('');
       } else {
         const err = await res.json();
@@ -118,6 +134,7 @@ const TaskComments: React.FC<TaskCommentsProps> = ({ taskId }) => {
       
       if (res.ok) {
         setComments(comments.filter(c => c.id !== commentId));
+        setTotal(total - 1);
       } else {
         const err = await res.json();
         alert(err.error || 'Failed to delete comment.');
@@ -146,7 +163,7 @@ const TaskComments: React.FC<TaskCommentsProps> = ({ taskId }) => {
     <div style={{ borderTop: '1px solid hsl(var(--border-subtle))', paddingTop: '1.5rem', marginTop: '0.5rem' }}>
       <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
         Comments 
-        {!loading && !error && <span style={{ fontSize: '0.75rem', fontWeight: 500, backgroundColor: 'hsl(var(--bg-tertiary))', padding: '0.1rem 0.5rem', borderRadius: '999px', color: 'hsl(var(--text-secondary))' }}>{comments.length}</span>}
+        {!loading && !error && <span style={{ fontSize: '0.75rem', fontWeight: 500, backgroundColor: 'hsl(var(--bg-tertiary))', padding: '0.1rem 0.5rem', borderRadius: '999px', color: 'hsl(var(--text-secondary))' }}>{total}</span>}
       </h3>
       
       {/* Comment Input */}
@@ -187,7 +204,7 @@ const TaskComments: React.FC<TaskCommentsProps> = ({ taskId }) => {
         ) : error ? (
           <div style={{ textAlign: 'center', padding: '1rem', color: 'hsl(var(--danger))' }}>
             <p style={{ marginBottom: '0.5rem' }}>{error}</p>
-            <button className="btn btn-secondary" onClick={fetchComments} style={{ padding: '0.3rem 0.8rem', fontSize: '0.8rem' }}>Retry</button>
+            <button className="btn btn-secondary" onClick={() => fetchComments(1)} style={{ padding: '0.3rem 0.8rem', fontSize: '0.8rem' }}>Retry</button>
           </div>
         ) : comments.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '2rem 1rem', border: '1px dashed hsl(var(--border-subtle))', borderRadius: 'var(--radius-md)', color: 'hsl(var(--text-muted))' }}>
@@ -253,6 +270,19 @@ const TaskComments: React.FC<TaskCommentsProps> = ({ taskId }) => {
               </div>
             </div>
           ))
+        )}
+        
+        {hasMore && !loading && !error && (
+          <div style={{ textAlign: 'center', marginTop: '1rem' }}>
+            <button 
+              className="btn btn-secondary" 
+              onClick={() => fetchComments(page + 1)}
+              disabled={isLoadingMore}
+              style={{ fontSize: '0.875rem' }}
+            >
+              {isLoadingMore ? 'Loading...' : 'Load More Comments'}
+            </button>
+          </div>
         )}
       </div>
     </div>
