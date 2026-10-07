@@ -254,9 +254,6 @@ export default function DashboardPage() {
     );
   }
 
-  const { workspace, stats, projects, my_tasks, upcoming_deadlines, recent_activity, notifications, team_members } = data;
-  const firstName = user?.full_name?.split(' ')[0] || 'User';
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
       
