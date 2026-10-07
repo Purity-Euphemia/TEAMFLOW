@@ -154,10 +154,15 @@ def get_current_workspace(user_id, requested_workspace_id=None):
     
     workspace_ids = [m.workspace_id for m in memberships]
     
-    if requested_workspace_id and int(requested_workspace_id) in workspace_ids:
-        ws = Workspace.query.get(int(requested_workspace_id))
-        role = next(m.role for m in memberships if m.workspace_id == ws.id)
-        return ws, role
+    if requested_workspace_id and requested_workspace_id != 'undefined':
+        try:
+            ws_id = int(requested_workspace_id)
+            if ws_id in workspace_ids:
+                ws = Workspace.query.get(ws_id)
+                role = next(m.role for m in memberships if m.workspace_id == ws.id)
+                return ws, role
+        except ValueError:
+            pass
     
     # Default to first workspace
     ws = Workspace.query.get(workspace_ids[0])

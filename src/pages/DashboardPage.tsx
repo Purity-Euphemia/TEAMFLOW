@@ -9,7 +9,7 @@ import { ActivityMessage, formatRelativeTime } from '../components/ActivityItem'
 import type { ActivityRecord } from '../components/ActivityItem';
 
 export default function DashboardPage() {
-  const { user } = useAuth();
+  const { user, checkAuth } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -63,6 +63,7 @@ export default function DashboardPage() {
       });
       if (res.ok) {
         setShowWorkspaceModal(false);
+        await checkAuth(); // Make sure context is updated with new workspace
         fetchDashboard();
       }
     } catch (err) {
