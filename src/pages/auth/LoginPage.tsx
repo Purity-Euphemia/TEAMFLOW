@@ -12,8 +12,8 @@ export default function LoginPage() {
   const { checkAuth } = useAuth();
   
   const stateMessage = (location.state as any)?.message;
-  // Fallback to /dashboard if previous path was protected, else go there
-  const from = (location.state as any)?.from?.pathname || '/dashboard';
+  const fromState = (location.state as any)?.from;
+  const from = fromState ? `${fromState.pathname}${fromState.search || ''}` : '/dashboard';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -119,7 +119,7 @@ export default function LoginPage() {
       </form>
 
       <div style={{ textAlign: 'center', marginTop: '2rem', fontSize: '0.875rem', color: 'hsl(var(--text-secondary))' }}>
-        Don't have an account? <Link to="/register" style={{ color: 'hsl(var(--accent-primary))', fontWeight: 600 }}>Create one</Link>
+        Don't have an account? <Link to="/register" state={location.state} style={{ color: 'hsl(var(--accent-primary))', fontWeight: 600 }}>Create one</Link>
       </div>
       
       <style dangerouslySetInnerHTML={{__html: `

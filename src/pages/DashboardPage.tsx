@@ -199,9 +199,37 @@ export default function DashboardPage() {
     );
   };
 
+  const { workspace, stats, projects, my_tasks, upcoming_deadlines, recent_activity, notifications, team_members, pending_invitations } = data || {};
+  const firstName = user?.full_name?.split(' ')[0] || 'User';
+
+  const renderPendingInvitations = () => {
+    if (!pending_invitations || pending_invitations.length === 0) return null;
+    
+    return (
+      <div style={{ marginBottom: '2rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        {pending_invitations.map((inv: any) => (
+          <div key={inv.id} className="glass" style={{ padding: '1.5rem', borderRadius: 'var(--radius-lg)', border: '1px solid hsl(var(--accent-primary))', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'hsla(var(--accent-primary), 0.05)' }}>
+            <div>
+              <h3 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'hsl(var(--text-primary))', marginBottom: '0.25rem' }}>
+                You have a pending workspace invitation
+              </h3>
+              <p style={{ color: 'hsl(var(--text-secondary))', fontSize: '0.95rem' }}>
+                <span style={{ fontWeight: 600 }}>{inv.workspace_name}</span> &middot; Role: <span style={{ textTransform: 'capitalize' }}>{inv.role}</span>
+              </p>
+            </div>
+            <Link to={`/accept-invite?token=${inv.token}`} className="btn btn-primary" style={{ padding: '0.625rem 1.25rem' }}>
+              Review Invitation
+            </Link>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
   if (!data?.has_workspace) {
     return (
       <>
+        {renderPendingInvitations()}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', padding: '4rem 0' }}>
           <div style={{ width: '80px', height: '80px', background: 'hsla(var(--accent-primary), 0.1)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1.5rem', color: 'hsl(var(--accent-primary))' }}>
             <LayoutDashboard size={40} />
@@ -248,6 +276,8 @@ export default function DashboardPage() {
           </button>
         </div>
       </div>
+
+      {renderPendingInvitations()}
 
       {/* KPI Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem' }}>

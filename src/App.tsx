@@ -16,6 +16,7 @@ import AcceptInvitePage from './pages/AcceptInvitePage';
 import ActivityPage from './pages/ActivityPage';
 import SettingsPage from './pages/SettingsPage';
 import SearchPage from './pages/SearchPage';
+import InvitationsPage from './pages/InvitationsPage';
 import ProtectedRoute from './components/ProtectedRoute';
 import DashboardLayout from './layouts/DashboardLayout';
 
@@ -48,6 +49,7 @@ function App() {
           <Route path="/activity" element={<ActivityPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/search" element={<SearchPage />} />
+          <Route path="/invitations" element={<InvitationsPage />} />
         </Route>
       </Route>
 

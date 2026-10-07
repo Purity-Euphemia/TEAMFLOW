@@ -111,6 +111,8 @@ export default function NotificationsPage() {
       navigateTo = `/projects/${notif.project_id}`;
     } else if (notif.type === 'ROLE_CHANGED') {
       navigateTo = `/team`;
+    } else if (notif.type === 'WORKSPACE_INVITATION') {
+      navigateTo = `/invitations`;
     }
     
     markAsRead(notif.id, navigateTo);

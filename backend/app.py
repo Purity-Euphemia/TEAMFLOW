@@ -119,6 +119,7 @@ class WorkspaceInvitation(db.Model):
     status = db.Column(db.String(20), default='pending') # pending, accepted, canceled
     expires_at = db.Column(db.DateTime, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    accepted_at = db.Column(db.DateTime, nullable=True)
 
 class NotificationPreference(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -443,6 +444,74 @@ def cancel_invitation(workspace_id, invite_id):
     db.session.commit()
     return jsonify({"message": "Invitation canceled"})
 
+@app.route('/api/user/invitations/pending', methods=['GET'])
+def get_user_pending_invitations():
+    user = require_auth()
+    if not user: return jsonify({"error": "Unauthorized"}), 401
+    
+    invites = WorkspaceInvitation.query.filter_by(email=user.email, status='pending').all()
+    result = []
+    for inv in invites:
+        if inv.expires_at < datetime.utcnow():
+            inv.status = 'expired'
+            continue
+            
+        inviter = User.query.get(inv.inviter_id)
+        workspace = Workspace.query.get(inv.workspace_id)
+        result.append({
+            "id": inv.id,
+            "workspace_name": workspace.name if workspace else "Unknown",
+            "role": inv.role,
+            "inviter_name": inviter.full_name if inviter else "Unknown",
+            "inviter_email": inviter.email if inviter else "Unknown",
+            "created_at": inv.created_at.isoformat(),
+            "expires_at": inv.expires_at.isoformat(),
+            "status": inv.status,
+            "token": inv.token
+        })
+    db.session.commit()
+    return jsonify({"invitations": result})
+
+@app.route('/api/invitations/<token>', methods=['GET'])
+def get_invitation(token):
+    invite = WorkspaceInvitation.query.filter_by(token=token).first()
+    if not invite: return jsonify({"error": "Invalid invitation"}), 404
+    
+    inviter = User.query.get(invite.inviter_id)
+    workspace = Workspace.query.get(invite.workspace_id)
+    
+    if invite.expires_at < datetime.utcnow() and invite.status == 'pending':
+        invite.status = 'expired'
+        db.session.commit()
+        
+    return jsonify({
+        "id": invite.id,
+        "email": invite.email,
+        "workspace_name": workspace.name if workspace else "Unknown",
+        "role": invite.role,
+        "inviter_name": inviter.full_name if inviter else "Unknown",
+        "inviter_email": inviter.email if inviter else "Unknown",
+        "created_at": invite.created_at.isoformat(),
+        "expires_at": invite.expires_at.isoformat(),
+        "status": invite.status,
+        "token": invite.token
+    })
+
+@app.route('/api/invitations/<token>/decline', methods=['POST'])
+def decline_invitation(token):
+    user = require_auth()
+    if not user: return jsonify({"error": "Unauthorized"}), 401
+    
+    invite = WorkspaceInvitation.query.filter_by(token=token, status='pending').first()
+    if not invite: return jsonify({"error": "Invalid or expired invitation"}), 404
+    
+    if user.email != invite.email:
+        return jsonify({"error": "This invitation was sent to a different email address"}), 403
+        
+    invite.status = 'declined'
+    db.session.commit()
+    return jsonify({"message": "Invitation declined"})
+
 @app.route('/api/invitations/<token>/accept', methods=['POST'])
 def accept_invitation(token):
     user = require_auth()
@@ -459,12 +528,17 @@ def accept_invitation(token):
     if user.email != invite.email:
         return jsonify({"error": "This invitation was sent to a different email address"}), 403
         
+    workspace = Workspace.query.get(invite.workspace_id)
+    if not workspace:
+        return jsonify({"error": "Workspace no longer exists"}), 404
+        
     existing = WorkspaceMember.query.filter_by(workspace_id=invite.workspace_id, user_id=user.id).first()
     if not existing:
         member = WorkspaceMember(workspace_id=invite.workspace_id, user_id=user.id, role=invite.role)
         db.session.add(member)
         
     invite.status = 'accepted'
+    invite.accepted_at = datetime.utcnow()
     create_activity(invite.workspace_id, user.id, 'MEMBER_JOINED', 'workspace_member')
     db.session.commit()
     
@@ -517,12 +591,25 @@ def get_dashboard():
     ws_id = request.args.get('workspace_id')
     workspace, role = get_current_workspace(user.id, ws_id)
     
+    # Get pending invitations
+    pending_invites = WorkspaceInvitation.query.filter_by(email=user.email, status='pending').all()
+    pending_data = []
+    for inv in pending_invites:
+        if inv.expires_at > datetime.utcnow():
+            ws = Workspace.query.get(inv.workspace_id)
+            pending_data.append({
+                "id": inv.id,
+                "workspace_name": ws.name if ws else "Unknown",
+                "role": inv.role,
+                "token": inv.token
+            })
+            
     if not workspace:
         return jsonify({
             "has_workspace": False,
-            "message": "No workspace found"
+            "message": "No workspace found",
+            "pending_invitations": pending_data
         }), 200
-        
     # Get basic counts
     active_projects_count = Project.query.filter(Project.workspace_id == workspace.id, Project.status.in_(['active', 'Active'])).count()
     my_open_tasks_count = Task.query.filter(Task.workspace_id == workspace.id, Task.assignee_id == user.id, Task.status.notin_(['completed', 'Done'])).count()
@@ -645,9 +732,9 @@ def get_dashboard():
         "upcoming_deadlines": upcoming_data,
         "recent_activity": activities_data,
         "notifications": notifications_data,
-        "team_members": team_data
+        "team_members": team_data,
+        "pending_invitations": pending_data
     })
-
 
 @app.route('/api/projects', methods=['GET'])
 def get_projects():

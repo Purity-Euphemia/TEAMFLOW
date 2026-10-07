@@ -292,31 +292,53 @@ export default function TeamPage() {
 
         {/* Pending Invitations */}
         {invitations.length > 0 && (
-          <div style={{ backgroundColor: 'white', borderRadius: '12px', marginTop: '2rem', border: '1px solid #1F2937', overflow: 'hidden' }}>
-            <div style={{ padding: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #F3F4F6' }}>
+          <div style={{ backgroundColor: 'white', borderRadius: '12px', marginTop: '2rem', border: '1px solid #E5E7EB', overflow: 'hidden' }}>
+            <div style={{ padding: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #E5E7EB' }}>
               <div>
-                <h3 style={{ fontSize: '1.125rem', fontWeight: 600, color: '#E5E7EB' }}>Pending Invitations</h3>
-                <p style={{ color: '#9CA3AF', fontSize: '0.875rem', marginTop: '0.25rem' }}>Invitations waiting to be accepted.</p>
+                <h3 style={{ fontSize: '1.125rem', fontWeight: 600, color: '#111827' }}>Pending Invitations</h3>
+                <p style={{ color: '#6B7280', fontSize: '0.875rem', marginTop: '0.25rem' }}>Invitations waiting to be accepted.</p>
               </div>
-              <button style={{ color: '#6366F1', fontWeight: 500, background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.875rem' }}>View all</button>
             </div>
             
-            <div style={{ maxHeight: '250px', overflowY: 'auto' }}>
-              {invitations.map((invitation, index) => (
-                <div key={invitation.id} style={{ padding: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: index === invitations.length - 1 ? 'none' : '1px solid #F3F4F6' }}>
-                  <div>
-                    <div style={{ color: '#111827', fontWeight: 500, marginBottom: '0.375rem', fontSize: '0.95rem' }}>{invitation.email}</div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#D97706', fontSize: '0.875rem', fontWeight: 500 }}>
-                      <div style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#D97706' }} />
-                      Pending &middot; Expires in {Math.max(1, Math.ceil((new Date(invitation.expires_at).getTime() - new Date().getTime()) / (1000 * 3600 * 24)))} days
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', gap: '0.75rem' }}>
-                    <button onClick={() => resendInvite(invitation.id)} style={{ padding: '0.5rem 1rem', borderRadius: '8px', border: '1px solid #E5E7EB', background: 'white', fontSize: '0.875rem', fontWeight: 500, cursor: 'pointer', color: '#374151' }}>Resend</button>
-                    <button onClick={() => cancelInvite(invitation.id)} style={{ padding: '0.5rem 1rem', borderRadius: '8px', border: '1px solid #E5E7EB', background: 'white', fontSize: '0.875rem', fontWeight: 500, cursor: 'pointer', color: '#374151' }}>Cancel</button>
-                  </div>
-                </div>
-              ))}
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                <thead>
+                  <tr style={{ backgroundColor: '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
+                    <th style={{ padding: '0.75rem 1.5rem', fontSize: '0.75rem', fontWeight: 600, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Email</th>
+                    <th style={{ padding: '0.75rem 1.5rem', fontSize: '0.75rem', fontWeight: 600, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Role</th>
+                    <th style={{ padding: '0.75rem 1.5rem', fontSize: '0.75rem', fontWeight: 600, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Status</th>
+                    <th style={{ padding: '0.75rem 1.5rem', fontSize: '0.75rem', fontWeight: 600, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'right' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {invitations.map((invitation, index) => (
+                    <tr key={invitation.id} style={{ borderBottom: index === invitations.length - 1 ? 'none' : '1px solid #E5E7EB' }}>
+                      <td style={{ padding: '1rem 1.5rem', fontSize: '0.875rem', color: '#111827', fontWeight: 500 }}>
+                        {invitation.email}
+                      </td>
+                      <td style={{ padding: '1rem 1.5rem', fontSize: '0.875rem', color: '#374151', textTransform: 'capitalize' }}>
+                        {invitation.role}
+                      </td>
+                      <td style={{ padding: '1rem 1.5rem' }}>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.375rem', fontSize: '0.875rem', color: '#D97706', fontWeight: 500 }}>
+                          <div style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: '#D97706' }} />
+                          Pending
+                        </span>
+                      </td>
+                      <td style={{ padding: '1rem 1.5rem', textAlign: 'right' }}>
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+                          <button onClick={() => {
+                            navigator.clipboard.writeText(`http://localhost:5173/accept-invite?token=${invitation.token}`);
+                            alert('Invite link copied to clipboard!');
+                          }} style={{ padding: '0.375rem 0.75rem', borderRadius: '6px', border: '1px solid #E5E7EB', background: 'white', fontSize: '0.75rem', fontWeight: 500, cursor: 'pointer', color: '#374151' }}>Copy Link</button>
+                          <button onClick={() => resendInvite(invitation.id)} style={{ padding: '0.375rem 0.75rem', borderRadius: '6px', border: '1px solid #E5E7EB', background: 'white', fontSize: '0.75rem', fontWeight: 500, cursor: 'pointer', color: '#374151' }}>Resend</button>
+                          <button onClick={() => cancelInvite(invitation.id)} style={{ padding: '0.375rem 0.75rem', borderRadius: '6px', border: '1px solid #E5E7EB', background: 'white', fontSize: '0.75rem', fontWeight: 500, cursor: 'pointer', color: '#DC2626' }}>Cancel</button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
         )}

@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 
 export default function RegisterPage() {
   const [formData, setFormData] = useState({ fullName: '', email: '', password: '', confirmPassword: '' });
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,8 +42,8 @@ export default function RegisterPage() {
       const data = await response.json();
 
       if (response.ok) {
-        // Option B: Redirect to login page as per requirements
-        navigate('/login', { state: { message: 'Registration successful. Please log in.' } });
+        const from = (location.state as any)?.from;
+        navigate('/login', { state: { message: 'Registration successful. Please log in.', from } });
       } else {
         setError(data.error || 'Registration failed.');
       }
@@ -131,7 +132,7 @@ export default function RegisterPage() {
       </form>
 
       <div style={{ textAlign: 'center', marginTop: '2rem', fontSize: '0.875rem', color: 'hsl(var(--text-secondary))' }}>
-        Already have an account? <Link to="/login" style={{ color: 'hsl(var(--accent-primary))', fontWeight: 600 }}>Log in</Link>
+        Already have an account? <Link to="/login" state={location.state} style={{ color: 'hsl(var(--accent-primary))', fontWeight: 600 }}>Log in</Link>
       </div>
 
       <style dangerouslySetInnerHTML={{__html: `
