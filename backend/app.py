@@ -1520,5 +1520,97 @@ def settings_delete_account():
     session.clear()
     return jsonify({'message': 'Account deleted.'})
 
+@app.route('/api/search', methods=['GET'])
+def global_search():
+    user = require_auth()
+    if not user:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    query = request.args.get('q', '').strip()
+    if len(query) < 2:
+        return jsonify({'error': 'Query too short'}), 400
+    if len(query) > 100:
+        query = query[:100]
+
+    search_type = request.args.get('type', 'all')
+    workspace_id = request.args.get('workspace_id')
+    try:
+        page = int(request.args.get('page', 1))
+        limit = int(request.args.get('limit', 5))
+    except ValueError:
+        page = 1
+        limit = 5
+    
+    if limit > 50:
+        limit = 50
+
+    ws, _ = get_current_workspace(user.id, workspace_id)
+    if not ws:
+        return jsonify({'error': 'Workspace not found or access denied'}), 403
+
+    results = {
+        'projects': [],
+        'tasks': [],
+        'people': []
+    }
+    
+    from sqlalchemy import or_
+
+    search_term = f"%{query}%"
+
+    if search_type in ('all', 'projects'):
+        project_query = Project.query.filter_by(workspace_id=ws.id).filter(
+            or_(Project.name.ilike(search_term), Project.description.ilike(search_term))
+        ).limit(limit).all()
+        for p in project_query:
+            results['projects'].append({
+                'id': p.id,
+                'name': p.name,
+                'description': p.description[:100] + '...' if p.description and len(p.description) > 100 else p.description,
+                'status': p.status
+            })
+
+    if search_type in ('all', 'tasks'):
+        task_query = db.session.query(Task, Project.name, User.full_name).outerjoin(
+            Project, Task.project_id == Project.id
+        ).outerjoin(
+            User, Task.assignee_id == User.id
+        ).filter(
+            Task.workspace_id == ws.id
+        ).filter(
+            or_(Task.title.ilike(search_term), Task.description.ilike(search_term))
+        ).limit(limit).all()
+        
+        for t, p_name, u_name in task_query:
+            results['tasks'].append({
+                'id': t.id,
+                'title': t.title,
+                'project_id': t.project_id,
+                'project_name': p_name,
+                'status': t.status,
+                'priority': t.priority,
+                'assignee_name': u_name
+            })
+
+    if search_type in ('all', 'people'):
+        member_query = db.session.query(WorkspaceMember, User).join(
+            User, WorkspaceMember.user_id == User.id
+        ).filter(
+            WorkspaceMember.workspace_id == ws.id
+        ).filter(
+            or_(User.full_name.ilike(search_term), User.email.ilike(search_term))
+        ).limit(limit).all()
+        
+        for m, u in member_query:
+            results['people'].append({
+                'id': u.id,
+                'name': u.full_name,
+                'email': u.email,
+                'role': m.role,
+                'avatar': u.avatar_url
+            })
+
+    return jsonify(results), 200
+
 if __name__ == '__main__':
     app.run(debug=True, port=5000)

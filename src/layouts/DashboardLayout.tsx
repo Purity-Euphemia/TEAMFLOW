@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useNotifications } from '../context/NotificationsContext';
+import GlobalSearch from '../components/GlobalSearch';
 
 export default function DashboardLayout() {
   const { user, setUser } = useAuth();
@@ -191,22 +192,7 @@ export default function DashboardLayout() {
 
           {/* Header Right */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
-            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-              <Search size={18} style={{ position: 'absolute', left: '1rem', color: 'hsl(var(--text-muted))' }} />
-              <input 
-                type="text" 
-                placeholder="Search..." 
-                style={{
-                  padding: '0.5rem 1rem 0.5rem 2.5rem',
-                  borderRadius: '9999px',
-                  border: '1px solid hsl(var(--border-subtle))',
-                  backgroundColor: 'hsl(var(--bg-primary))',
-                  outline: 'none',
-                  fontSize: '0.875rem',
-                  width: '240px'
-                }} 
-              />
-            </div>
+            <GlobalSearch />
             <div ref={dropdownRef} style={{ position: 'relative' }}>
               <button 
                 onClick={() => setIsDropdownOpen(!isDropdownOpen)}

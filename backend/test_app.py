@@ -142,5 +142,73 @@ class TeamFlowTestCase(unittest.TestCase):
         res = self.client.patch(f'/api/projects/{self.proj_id}', json={'name': 'Hacked'})
         self.assertEqual(res.status_code, 403)
 
+    def test_global_search_basic(self):
+        """Test BASIC SEARCH (search projects, tasks, team members, short search)"""
+        self.login(self.user1_id)
+        
+        res = self.client.get('/api/search?q=a')
+        self.assertEqual(res.status_code, 400)
+        
+        res = self.client.get('/api/search?q=test project')
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertEqual(len(data['projects']), 1)
+        self.assertEqual(data['projects'][0]['name'], 'Test Project')
+        
+        res = self.client.get('/api/search?q=Task 1')
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertEqual(len(data['tasks']), 1)
+        self.assertEqual(data['tasks'][0]['title'], 'Task 1')
+        
+        res = self.client.get('/api/search?q=Alice')
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertEqual(len(data['people']), 1)
+        self.assertEqual(data['people'][0]['name'], 'Alice Admin')
+
+    def test_global_search_workspace_security(self):
+        """Test WORKSPACE SECURITY (Workspace A cannot search Workspace B)"""
+        with app.app_context():
+            ws2 = Workspace(name='Other WS')
+            db.session.add(ws2)
+            db.session.commit()
+            
+            outsider = User(full_name='Hacker', email='hacker@test.com', password_hash='hash')
+            db.session.add(outsider)
+            db.session.commit()
+            outsider_id = outsider.id
+            
+            wm = WorkspaceMember(workspace_id=ws2.id, user_id=outsider.id, role='owner')
+            db.session.add(wm)
+            db.session.commit()
+            
+        self.login(outsider_id)
+        
+        res = self.client.get('/api/search?q=test project')
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertEqual(len(data['projects']), 0)
+        self.assertEqual(len(data['tasks']), 0)
+        self.assertEqual(len(data['people']), 0)
+
+    def test_global_search_security(self):
+        """Test SECURITY (unauthenticated search)"""
+        res = self.client.get('/api/search?q=test')
+        self.assertEqual(res.status_code, 401)
+        
+    def test_global_search_pagination(self):
+        """Test PAGINATION (result limits)"""
+        with app.app_context():
+            for i in range(10):
+                db.session.add(Task(workspace_id=self.ws_id, project_id=self.proj_id, title=f'Paginated Task {i}'))
+            db.session.commit()
+            
+        self.login(self.user1_id)
+        res = self.client.get('/api/search?q=Paginated Task&limit=5')
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertEqual(len(data['tasks']), 5)
+
 if __name__ == '__main__':
     unittest.main()
